@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   User, Mail, Phone, MapPin, Calendar, Star, CheckCircle2,
   Edit2, Save, Camera, Award, Sparkles, Globe, Instagram,
@@ -7,6 +7,8 @@ import {
 } from 'lucide-react';
 import { METHODOLOGIES } from '@/data/mock-data';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/lib/auth/AuthProvider';
+import { isSupabaseMode } from '@/lib/dataMode';
 
 const THERAPIST = {
   name: 'Ana Beatriz Santos',
@@ -23,15 +25,38 @@ const THERAPIST = {
 };
 
 export default function ProfilePage() {
+  const { user, signOut } = useAuth();
+  const navigate = useNavigate();
+  const supabaseMode = isSupabaseMode();
   const [editMode, setEditMode] = useState(false);
   const [form, setForm] = useState(THERAPIST);
   const [saved, setSaved] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  const displayEmail = supabaseMode && user?.email ? user.email : THERAPIST.email;
+  const displayName = supabaseMode && user?.email
+    ? (user.user_metadata?.full_name as string | undefined) ?? user.email.split('@')[0]
+    : THERAPIST.name;
 
   const handleSave = () => {
     setSaved(true);
     setEditMode(false);
     setTimeout(() => setSaved(false), 2000);
+  };
+
+  const handleLogout = async () => {
+    setLoggingOut(true);
+    try {
+      if (supabaseMode) {
+        await signOut();
+        navigate('/auth/login', { replace: true });
+      } else {
+        setShowLogoutModal(false);
+      }
+    } finally {
+      setLoggingOut(false);
+    }
   };
 
   return (
@@ -44,19 +69,25 @@ export default function ProfilePage() {
               <AlertTriangle size={22} className="text-red-400" />
             </div>
             <h3 className="font-cinzel text-base font-semibold text-[var(--color-text-primary)] mb-2">Terminar sessão</h3>
-            <p className="text-sm text-[var(--color-text-muted)] mb-6">Tem a certeza que quer terminar a sessão? Esta acção é apenas um mock.</p>
+            <p className="text-sm text-[var(--color-text-muted)] mb-6">
+              {supabaseMode
+                ? 'Tem a certeza que quer terminar a sessão Supabase?'
+                : 'Tem a certeza que quer terminar a sessão? Esta acção é apenas um mock.'}
+            </p>
             <div className="flex gap-3">
               <button
                 onClick={() => setShowLogoutModal(false)}
+                disabled={loggingOut}
                 className="flex-1 py-2.5 rounded-xl border border-[var(--color-border)] text-sm font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-1)] transition-colors"
               >
                 Cancelar
               </button>
               <button
-                onClick={() => setShowLogoutModal(false)}
-                className="flex-1 py-2.5 rounded-xl bg-red-800/40 border border-red-700/40 text-sm font-semibold text-red-300 hover:bg-red-800/60 transition-colors"
+                onClick={handleLogout}
+                disabled={loggingOut}
+                className="flex-1 py-2.5 rounded-xl bg-red-800/40 border border-red-700/40 text-sm font-semibold text-red-300 hover:bg-red-800/60 transition-colors disabled:opacity-50"
               >
-                Terminar
+                {loggingOut ? 'A terminar…' : 'Terminar'}
               </button>
             </div>
           </div>
@@ -105,7 +136,7 @@ export default function ProfilePage() {
           <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface-0)] p-6 flex flex-col items-center text-center">
             <div className="relative">
               <div className="w-20 h-20 rounded-2xl bg-[var(--color-surface-2)] flex items-center justify-center text-2xl font-bold text-[var(--color-gold)] mb-4">
-                {THERAPIST.name[0]}
+                {displayName[0]?.toUpperCase() ?? '?'}
               </div>
               {editMode && (
                 <button className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-[var(--color-gold)] text-[var(--color-void)] flex items-center justify-center">
@@ -113,8 +144,12 @@ export default function ProfilePage() {
                 </button>
               )}
             </div>
-            <h2 className="font-cinzel text-base font-semibold text-[var(--color-text-primary)]">{form.name}</h2>
-            <p className="text-xs text-[var(--color-text-muted)] mt-1">Terapeuta Radiônica</p>
+            <h2 className="font-cinzel text-base font-semibold text-[var(--color-text-primary)]">
+              {supabaseMode ? displayName : form.name}
+            </h2>
+            {supabaseMode && user?.email && (
+              <p className="text-xs text-[var(--color-text-muted)] mt-1">{user.email}</p>
+            )}
             <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5">
               Membro desde {new Date(THERAPIST.memberSince).toLocaleDateString('pt-PT', { month: 'long', year: 'numeric' })}
             </p>
@@ -214,7 +249,9 @@ export default function ProfilePage() {
                     />
                   ) : (
                     <p className="text-sm text-[var(--color-text-secondary)] px-1">
-                      {form[key as keyof typeof form] as string || '—'}
+                      {key === 'email' && supabaseMode
+                        ? displayEmail
+                        : (form[key as keyof typeof form] as string || '—')}
                     </p>
                   )}
                 </div>

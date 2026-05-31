@@ -1,10 +1,12 @@
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, Calendar, Users, FileText, BookOpen,
-  Layers, User, ChevronLeft, ChevronRight, Zap, X, Award,
+  Layers, User, ChevronLeft, ChevronRight, Zap, X, Award, LogOut,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { METHODOLOGIES } from '@/data/mock-data';
+import { useAuth } from '@/lib/auth/AuthProvider';
+import { isSupabaseMode } from '@/lib/dataMode';
 
 const pendingCerts = METHODOLOGIES.filter(m => m.certificationStatus === 'pending').length;
 
@@ -32,6 +34,17 @@ interface SidebarProps {
 
 export function Sidebar({ collapsed, onToggle, mobile, mobileOpen, onMobileClose }: SidebarProps) {
   const location = useLocation().pathname;
+  const navigate = useNavigate();
+  const { signOut } = useAuth();
+  const supabaseMode = isSupabaseMode();
+
+  const handleSignOut = async () => {
+    if (supabaseMode) {
+      await signOut();
+      navigate('/auth/login', { replace: true });
+    }
+    if (mobile) onMobileClose?.();
+  };
 
   const isActive = (to: string) => {
     if (to === '/dashboard') return location === '/dashboard' || location === '/';
@@ -100,6 +113,21 @@ export function Sidebar({ collapsed, onToggle, mobile, mobileOpen, onMobileClose
             {!collapsed && <span>{label}</span>}
           </Link>
         ))}
+
+        {supabaseMode && (
+          <button
+            type="button"
+            onClick={handleSignOut}
+            title={collapsed ? 'Terminar sessão' : undefined}
+            className={cn(
+              'nav-link w-full text-red-400 hover:text-red-300 hover:bg-red-900/20',
+              collapsed && 'justify-center px-2',
+            )}
+          >
+            <LogOut size={17} className="shrink-0" />
+            {!collapsed && <span>Terminar sessão</span>}
+          </button>
+        )}
 
         {!mobile && (
           <button type="button" onClick={onToggle} className="nav-link w-full">
