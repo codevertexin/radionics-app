@@ -1,13 +1,9 @@
 /**
  * Specialties service — mock-backed, Supabase-ready.
- * Replace mock implementations with supabase queries when credentials exist.
  */
 
-import {
-  SPECIALTIES,
-  SPECIALTY_REQUESTS,
-} from '@/data/mock-data';
-import { supabase } from '@/lib/supabaseClient';
+import { SPECIALTIES, SPECIALTY_REQUESTS } from '@/data/mock-data';
+import { isSupabaseMode, supabaseNotWired } from '@/lib/dataMode';
 import { getMyCertifications } from '@/services/certificationsService';
 import type { Specialty, SpecialtyRequest } from '@/types';
 
@@ -17,22 +13,19 @@ let specialtiesStore = [...SPECIALTIES];
 let requestsStore = [...SPECIALTY_REQUESTS];
 
 export async function getSpecialties(): Promise<Specialty[]> {
-  if (supabase) {
-    // TODO: const { data } = await supabase.from('radionics_specialties').select('*').eq('is_active', true);
-    throw new Error('Supabase not wired yet');
-  }
+  if (isSupabaseMode()) supabaseNotWired('specialties.getSpecialties');
   await delay();
   return specialtiesStore.map(s => ({ ...s }));
 }
 
 export async function getMySpecialtyRequests(): Promise<SpecialtyRequest[]> {
-  if (supabase) throw new Error('Supabase not wired yet');
+  if (isSupabaseMode()) supabaseNotWired('specialties.getMySpecialtyRequests');
   await delay();
   return requestsStore.filter(r => r.therapistId === 'therapist-001').map(r => ({ ...r }));
 }
 
 export async function getAllSpecialtyRequests(): Promise<SpecialtyRequest[]> {
-  if (supabase) throw new Error('Supabase not wired yet');
+  if (isSupabaseMode()) supabaseNotWired('specialties.getAllSpecialtyRequests');
   await delay();
   return requestsStore.map(r => ({ ...r }));
 }
@@ -44,7 +37,7 @@ export async function proposeSpecialty(input: {
   category?: string;
   notes?: string;
 }): Promise<SpecialtyRequest> {
-  if (supabase) throw new Error('Supabase not wired yet');
+  if (isSupabaseMode()) supabaseNotWired('specialties.proposeSpecialty');
   await delay();
 
   const req: SpecialtyRequest = {
@@ -67,7 +60,7 @@ export async function reviewSpecialtyRequest(
   status: 'approved' | 'rejected',
   adminNotes?: string,
 ): Promise<SpecialtyRequest> {
-  if (supabase) throw new Error('Supabase not wired yet');
+  if (isSupabaseMode()) supabaseNotWired('specialties.reviewSpecialtyRequest');
   await delay();
 
   const idx = requestsStore.findIndex(r => r.id === id);
@@ -103,7 +96,6 @@ export async function reviewSpecialtyRequest(
   return updated;
 }
 
-/** Approved specialties only — for session wizard */
 export async function getApprovedSpecialties(): Promise<Specialty[]> {
   const [specialties, certs] = await Promise.all([getSpecialties(), getMyCertifications()]);
   const approvedIds = new Set(

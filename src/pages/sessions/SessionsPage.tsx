@@ -1,13 +1,21 @@
 import { Link } from 'react-router-dom';
-import { Plus, Play, Clock, Calendar, ChevronRight } from 'lucide-react';
-import { SESSIONS } from '@/data/mock-data';
+import { useQuery } from '@tanstack/react-query';
+import { Plus, Play, Clock, Calendar, ChevronRight, Loader2 } from 'lucide-react';
+import { listSessions } from '@/services/sessionsService';
 import { cn, SESSION_STATUS_LABELS, SESSION_STATUS_COLORS, formatDate, formatTime } from '@/lib/utils';
+import type { Session } from '@/types';
 
 export default function SessionsPage() {
-  const today = '2025-05-30';
-  const scheduled = SESSIONS.filter(s => s.scheduledAt?.startsWith(today));
-  const inProgress = SESSIONS.filter(s => s.status === 'in_progress' || s.status === 'paused');
-  const recent = SESSIONS.filter(s => s.status === 'completed' || s.status === 'reported');
+  const { data: sessions = [], isLoading } = useQuery({
+    queryKey: ['sessions'],
+    queryFn: listSessions,
+  });
+
+  const today = new Date().toISOString().slice(0, 10);
+  const scheduled = sessions.filter(s => s.scheduledAt?.startsWith(today));
+  const inProgress = sessions.filter(s => s.status === 'in_progress' || s.status === 'paused');
+  const recent = sessions.filter(s => s.status === 'completed' || s.status === 'reported');
+  const drafts = sessions.filter(s => s.status === 'draft');
 
   return (
     <div className="min-h-full bg-[var(--color-void)]">
@@ -28,6 +36,26 @@ export default function SessionsPage() {
       </div>
 
       <div className="p-6 space-y-8">
+        {isLoading && (
+          <div className="flex items-center gap-2 text-sm text-[var(--color-text-muted)]">
+            <Loader2 size={16} className="animate-spin" />
+            A carregar sessões…
+          </div>
+        )}
+
+        {!isLoading && drafts.length > 0 && (
+          <section>
+            <h2 className="font-cinzel text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-wider mb-3">
+              Rascunhos
+            </h2>
+            <div className="space-y-2">
+              {drafts.map(session => (
+                <SessionRow key={session.id} session={session} />
+              ))}
+            </div>
+          </section>
+        )}
+
         {inProgress.length > 0 && (
           <section>
             <h2 className="font-cinzel text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-wider mb-3 flex items-center gap-2">
@@ -59,9 +87,13 @@ export default function SessionsPage() {
             <Clock size={13} /> Recentes
           </h2>
           <div className="space-y-2">
-            {recent.map(session => (
-              <SessionRow key={session.id} session={session} />
-            ))}
+            {recent.length > 0 ? (
+              recent.map(session => (
+                <SessionRow key={session.id} session={session} />
+              ))
+            ) : (
+              <p className="text-sm text-[var(--color-text-muted)] py-4">Nenhuma sessão concluída recentemente.</p>
+            )}
           </div>
         </section>
       </div>
@@ -69,7 +101,7 @@ export default function SessionsPage() {
   );
 }
 
-function SessionRow({ session }: { session: (typeof SESSIONS)[number] }) {
+function SessionRow({ session }: { session: Session }) {
   const statusLabel = SESSION_STATUS_LABELS[session.status] ?? session.status;
   const statusColor = SESSION_STATUS_COLORS[session.status] ?? 'text-zinc-400 bg-zinc-800';
 

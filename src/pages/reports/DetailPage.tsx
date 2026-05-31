@@ -11,6 +11,7 @@ import {
 import { getReportV2ById, getClientById, SESSIONS } from '@/data/mock-data';
 import { useReportState } from '@/lib/report-state';
 import { cn } from '@/lib/utils';
+import { MOCK_SAVE_LABELS } from '@/lib/dataMode';
 import type {
   ReportSectionCode, SectionVisibility, ReportStatus, SourceTrace, ReportV2, ReportSection
 } from '@/types';
@@ -69,19 +70,19 @@ function SaveBadge({ state }: { state: 'saved' | 'unsaved' | 'saving' }) {
   if (state === 'saving') return (
     <span className="flex items-center gap-1 text-[10px] text-[var(--color-text-muted)]">
       <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-      A guardar...
+      {MOCK_SAVE_LABELS.saving}
     </span>
   );
   if (state === 'unsaved') return (
     <span className="flex items-center gap-1 text-[10px] text-amber-400">
       <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-      Não guardado
+      {MOCK_SAVE_LABELS.unsavedShort}
     </span>
   );
   return (
     <span className="flex items-center gap-1 text-[10px] text-[var(--color-text-muted)]">
       <Check size={10} className="text-emerald-400" />
-      Guardado
+      {MOCK_SAVE_LABELS.saved}
     </span>
   );
 }

@@ -3,7 +3,7 @@
  */
 
 import { CERTIFICATIONS } from '@/data/mock-data';
-import { supabase } from '@/lib/supabaseClient';
+import { isSupabaseMode, supabaseNotWired } from '@/lib/dataMode';
 import type { Certification, CertDocument, DocFileType } from '@/types';
 
 const delay = (ms = 120) => new Promise<void>(r => setTimeout(r, ms));
@@ -18,7 +18,7 @@ function cloneCert(cert: Certification): Certification {
 }
 
 export async function getMyCertifications(): Promise<Certification[]> {
-  if (supabase) throw new Error('Supabase not wired yet');
+  if (isSupabaseMode()) supabaseNotWired('certifications.getMyCertifications');
   await delay();
   return certsStore
     .filter(c => c.therapistId === 'therapist-001')
@@ -26,7 +26,7 @@ export async function getMyCertifications(): Promise<Certification[]> {
 }
 
 export async function getAllCertifications(): Promise<Certification[]> {
-  if (supabase) throw new Error('Supabase not wired yet');
+  if (isSupabaseMode()) supabaseNotWired('certifications.getAllCertifications');
   await delay();
   return certsStore.map(cloneCert);
 }
@@ -39,7 +39,7 @@ export async function submitCertification(input: {
   trainingCompletedDate?: string;
   notes?: string;
 }): Promise<Certification> {
-  if (supabase) throw new Error('Supabase not wired yet');
+  if (isSupabaseMode()) supabaseNotWired('certifications.submitCertification');
   await delay();
 
   const existing = certsStore.find(
@@ -74,7 +74,7 @@ export async function submitCertification(input: {
 }
 
 export async function uploadCertDocument(certId: string, file: File): Promise<CertDocument> {
-  if (supabase) throw new Error('Supabase not wired yet');
+  if (isSupabaseMode()) supabaseNotWired('certifications.uploadCertDocument');
   await delay(200);
 
   const ext = file.name.split('.').pop()?.toLowerCase() ?? 'pdf';
@@ -102,7 +102,7 @@ export async function reviewCertification(
   status: 'approved' | 'rejected',
   adminNotes?: string,
 ): Promise<Certification> {
-  if (supabase) throw new Error('Supabase not wired yet');
+  if (isSupabaseMode()) supabaseNotWired('certifications.reviewCertification');
   await delay();
 
   const idx = certsStore.findIndex(c => c.id === id);

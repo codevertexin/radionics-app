@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useNavigate, useLocation, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ChevronLeft, ChevronRight, Mic, MicOff, Save, CheckCircle2,
   Clock, User, Zap, BookOpen, AlertCircle, Info, Sparkles,
@@ -9,9 +10,9 @@ import {
   Flame, TrendingUp, Minus,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import {
-  getSessionById, HAWKINS_LEVELS, getToolsByMethodology, TOOLS_RAD35
-} from '@/data/mock-data';
+import { MOCK_SAVE_LABELS } from '@/lib/dataMode';
+import { HAWKINS_LEVELS, getToolsByMethodology, TOOLS_RAD35 } from '@/data/mock-data';
+import { getSessionById, updateSession } from '@/services/sessionsService';
 import { useSessionState } from '@/lib/session-state';
 import type { Session, SessionStage, ToolResult, HawkinsLevel, Tool, ToolIntensity } from '@/types';
 
@@ -555,7 +556,7 @@ function StageSidebar({ stages, currentStage, stageCompletion, onSelectStage }: 
         </div>
         <div className="flex items-center gap-2 text-[var(--color-text-muted)]">
           <Save size={11} />
-          <span className="text-[10px]">Auto-guardado ativo</span>
+          <span className="text-[10px]">{MOCK_SAVE_LABELS.autoSave}</span>
         </div>
       </div>
     </div>
@@ -1351,7 +1352,7 @@ function VoiceNoteBar({ globalRecording, onToggleRecording, savedAt }: {
 
       <div className="ml-auto flex items-center gap-1.5 text-[var(--color-text-muted)] flex-shrink-0">
         <Save size={11} />
-        <span className="text-[10px]">Guardado às {savedAt}</span>
+        <span className="text-[10px]">{MOCK_SAVE_LABELS.savedAt(savedAt)}</span>
       </div>
     </div>
   );
@@ -1443,12 +1444,27 @@ function AssistantPanel({ session, currentStage, toolResults }: { session: Sessi
 export default function WorkspacePage() {
   const { id = '' } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const session = getSessionById(id);
+  const queryClient = useQueryClient();
+
+  const { data: session, isLoading } = useQuery({
+    queryKey: ['session', id],
+    queryFn: () => getSessionById(id),
+    enabled: !!id,
+  });
+
   const [currentStage, setCurrentStage] = useState(session?.currentStageCode || 'preparation');
   const [saved, setSaved] = useState(false);
   const [globalRecording, setGlobalRecording] = useState(false);
   const [showReportPreview, setShowReportPreview] = useState(false);
-  const [savedAt] = useState(new Date().toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' }));
+  const [savedAt, setSavedAt] = useState(
+    () => new Date().toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' }),
+  );
+
+  useEffect(() => {
+    if (session?.currentStageCode) {
+      setCurrentStage(session.currentStageCode);
+    }
+  }, [session?.id, session?.currentStageCode]);
 
   // ── Central session state ──────────────────────────────────
   const sessionState = useSessionState(session ?? { id, methodologyId: '' });
@@ -1472,10 +1488,30 @@ export default function WorkspacePage() {
     setToolResult(toolId, patch);
   }, [setToolResult]);
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    if (!session) return;
+    await updateSession(id, {
+      hawkinsInitial: hawkinsInitial ?? undefined,
+      hawkinsFinal: hawkinsFinal ?? undefined,
+      reverberationDays: reverbDays ?? undefined,
+      currentStageCode: currentStage,
+      status: session.status === 'draft' ? 'in_progress' : session.status,
+    });
+    await queryClient.invalidateQueries({ queryKey: ['session', id] });
+    await queryClient.invalidateQueries({ queryKey: ['sessions'] });
+    const now = new Date().toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' });
+    setSavedAt(now);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-[var(--color-void)]">
+        <p className="text-sm text-[var(--color-text-muted)]">A carregar sessão…</p>
+      </div>
+    );
+  }
 
   if (!session) {
     return (
@@ -1565,7 +1601,7 @@ export default function WorkspacePage() {
             )}
           >
             {saved ? <CheckCircle2 size={11} /> : <Save size={11} />}
-            {saved ? 'Guardado' : 'Guardar'}
+            {saved ? MOCK_SAVE_LABELS.saved : 'Guardar'}
           </button>
 
           <button

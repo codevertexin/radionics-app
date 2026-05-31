@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Check, Cloud } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { MOCK_SAVE_LABELS } from '@/lib/dataMode';
 
 interface AutoSaveProps {
   lastSaved?: Date;
@@ -9,16 +10,15 @@ interface AutoSaveProps {
 }
 
 export function AutoSave({ lastSaved, isSaving, className }: AutoSaveProps) {
-  const [text, setText] = useState('Guardado');
+  const [text, setText] = useState<string>(MOCK_SAVE_LABELS.saved);
 
   useEffect(() => {
     if (isSaving) {
-      setText('A guardar...');
+      setText(MOCK_SAVE_LABELS.saving);
     } else if (lastSaved) {
       const diff = Math.floor((Date.now() - lastSaved.getTime()) / 1000);
-      if (diff < 5) setText('Guardado agora');
-      else if (diff < 60) setText(`Guardado há ${diff}s`);
-      else setText(`Guardado há ${Math.floor(diff / 60)}m`);
+      if (diff < 5) setText(MOCK_SAVE_LABELS.savedNow);
+      else setText(MOCK_SAVE_LABELS.savedAgo(diff));
     }
   }, [lastSaved, isSaving]);
 

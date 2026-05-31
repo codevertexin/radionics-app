@@ -8,7 +8,7 @@ import { getApprovedSpecialties } from '@/services/specialtiesService';
 import { createSession } from '@/services/sessionsService';
 import { cn } from '@/lib/utils';
 import type { Specialty, Template, Client, SessionMode } from '@/types';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 type WizardStep = 'specialty' | 'template' | 'client' | 'confirm';
 
@@ -21,6 +21,7 @@ const STEPS: { id: WizardStep; label: string }[] = [
 
 export default function NewSessionPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [step, setStep] = useState<WizardStep>('specialty');
   const [selectedSpecialty, setSelectedSpecialty] = useState<Specialty | null>(null);
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
@@ -63,6 +64,7 @@ export default function NewSessionPage() {
         sessionMode,
         intention: intention || undefined,
       });
+      await queryClient.invalidateQueries({ queryKey: ['sessions'] });
       navigate(`/sessions/${session.id}`);
     } finally {
       setCreating(false);

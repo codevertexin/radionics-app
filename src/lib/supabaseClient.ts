@@ -4,8 +4,9 @@ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
 
 /**
- * Supabase client — null until credentials are configured.
- * Services fall back to mock data when this is unavailable.
+ * Supabase client — instantiated when URL + anon key exist.
+ * Data source is controlled by VITE_DATA_MODE (see lib/dataMode.ts).
+ * Default mode is mock; credentials alone do not switch persistence.
  */
 export const supabase: SupabaseClient | null =
   supabaseUrl && supabaseAnonKey

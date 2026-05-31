@@ -10,6 +10,7 @@ import {
 import { METHODOLOGIES } from '@/data/mock-data';
 import { useTemplateState, BLOCK_LIBRARY, BLOCK_LIBRARY_CATEGORIES } from '@/lib/template-state';
 import { cn } from '@/lib/utils';
+import { MOCK_SAVE_LABELS } from '@/lib/dataMode';
 import type { TemplateBlock, TemplateField, FieldType, SaveState } from '@/types';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -42,17 +43,17 @@ const STAGE_DEFS = [
 function SaveIndicator({ state }: { state: SaveState }) {
   if (state === 'saving') return (
     <span className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)]">
-      <Loader2 size={11} className="animate-spin" /> A guardar…
+      <Loader2 size={11} className="animate-spin" /> {MOCK_SAVE_LABELS.saving}
     </span>
   );
   if (state === 'unsaved') return (
     <span className="flex items-center gap-1.5 text-xs text-amber-400">
-      <RefreshCw size={11} /> Alterações não guardadas
+      <RefreshCw size={11} /> {MOCK_SAVE_LABELS.unsaved}
     </span>
   );
   return (
     <span className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)]">
-      <Check size={11} /> Guardado
+      <Check size={11} /> {MOCK_SAVE_LABELS.saved}
     </span>
   );
 }
@@ -919,7 +920,7 @@ export default function TemplateBuilderPage() {
           ) : (
             <div className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-[var(--color-surface-2)] text-xs text-[var(--color-text-muted)]">
               <Check size={13} className="text-emerald-400" />
-              Auto-guardado
+              {MOCK_SAVE_LABELS.autoSave}
             </div>
           )}
         </div>
