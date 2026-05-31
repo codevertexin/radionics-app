@@ -1,9 +1,10 @@
 /**
- * Certifications service — mock-backed, Supabase-ready.
+ * Certifications service — mock-backed or Supabase (VITE_DATA_MODE).
  */
 
 import { CERTIFICATIONS } from '@/data/mock-data';
-import { isSupabaseMode, supabaseNotWired } from '@/lib/dataMode';
+import { isSupabaseMode } from '@/lib/dataMode';
+import * as supabaseCerts from '@/services/supabase/certificationsSupabase';
 import type { Certification, CertDocument, DocFileType } from '@/types';
 
 const delay = (ms = 120) => new Promise<void>(r => setTimeout(r, ms));
@@ -17,21 +18,21 @@ function cloneCert(cert: Certification): Certification {
   return { ...cert, documents: cert.documents.map(d => ({ ...d })) };
 }
 
-export async function getMyCertifications(): Promise<Certification[]> {
-  if (isSupabaseMode()) supabaseNotWired('certifications.getMyCertifications');
+// ─── Mock implementations ─────────────────────────────────────
+
+async function mockGetMyCertifications(): Promise<Certification[]> {
   await delay();
   return certsStore
     .filter(c => c.therapistId === 'therapist-001')
     .map(cloneCert);
 }
 
-export async function getAllCertifications(): Promise<Certification[]> {
-  if (isSupabaseMode()) supabaseNotWired('certifications.getAllCertifications');
+async function mockGetAllCertifications(): Promise<Certification[]> {
   await delay();
   return certsStore.map(cloneCert);
 }
 
-export async function submitCertification(input: {
+async function mockSubmitCertification(input: {
   specialtyId: string;
   yearsOfExperience: number;
   experienceDescription?: string;
@@ -39,7 +40,6 @@ export async function submitCertification(input: {
   trainingCompletedDate?: string;
   notes?: string;
 }): Promise<Certification> {
-  if (isSupabaseMode()) supabaseNotWired('certifications.submitCertification');
   await delay();
 
   const existing = certsStore.find(
@@ -73,8 +73,7 @@ export async function submitCertification(input: {
   return cloneCert(cert);
 }
 
-export async function uploadCertDocument(certId: string, file: File): Promise<CertDocument> {
-  if (isSupabaseMode()) supabaseNotWired('certifications.uploadCertDocument');
+async function mockUploadCertDocument(certId: string, file: File): Promise<CertDocument> {
   await delay(200);
 
   const ext = file.name.split('.').pop()?.toLowerCase() ?? 'pdf';
@@ -97,12 +96,11 @@ export async function uploadCertDocument(certId: string, file: File): Promise<Ce
   return doc;
 }
 
-export async function reviewCertification(
+async function mockReviewCertification(
   id: string,
   status: 'approved' | 'rejected',
   adminNotes?: string,
 ): Promise<Certification> {
-  if (isSupabaseMode()) supabaseNotWired('certifications.reviewCertification');
   await delay();
 
   const idx = certsStore.findIndex(c => c.id === id);
@@ -121,3 +119,72 @@ export async function reviewCertification(
   certsStore[idx] = updated;
   return cloneCert(updated);
 }
+
+// ─── Public API (Phase 2A names + UI aliases) ─────────────────
+
+export async function listCertifications(): Promise<Certification[]> {
+  if (isSupabaseMode()) return supabaseCerts.listCertifications();
+  return mockGetMyCertifications();
+}
+
+export async function adminListCertifications(): Promise<Certification[]> {
+  if (isSupabaseMode()) return supabaseCerts.adminListCertifications();
+  return mockGetAllCertifications();
+}
+
+export async function listCertificationDocuments(certificationId: string): Promise<CertDocument[]> {
+  if (isSupabaseMode()) return supabaseCerts.listCertificationDocuments(certificationId);
+  await delay();
+  const cert = certsStore.find(c => c.id === certificationId);
+  return cert ? cert.documents.map(d => ({ ...d })) : [];
+}
+
+export async function submitCertification(input: {
+  specialtyId: string;
+  yearsOfExperience: number;
+  experienceDescription?: string;
+  trainingInstitution?: string;
+  trainingCompletedDate?: string;
+  notes?: string;
+}): Promise<Certification> {
+  if (isSupabaseMode()) return supabaseCerts.submitCertification(input);
+  return mockSubmitCertification(input);
+}
+
+export async function uploadCertificationDocuments(
+  certId: string,
+  files: File[],
+): Promise<CertDocument[]> {
+  if (isSupabaseMode()) return supabaseCerts.uploadCertificationDocuments(certId, files);
+  return Promise.all(files.map(f => mockUploadCertDocument(certId, f)));
+}
+
+export async function addCertificationDocuments(
+  certId: string,
+  files: File[],
+): Promise<CertDocument[]> {
+  return uploadCertificationDocuments(certId, files);
+}
+
+export async function uploadCertDocument(certId: string, file: File): Promise<CertDocument> {
+  if (isSupabaseMode()) return supabaseCerts.uploadCertificationDocument(certId, file);
+  return mockUploadCertDocument(certId, file);
+}
+
+export async function adminReviewCertification(
+  id: string,
+  status: 'approved' | 'rejected',
+  adminNotes?: string,
+): Promise<Certification> {
+  if (isSupabaseMode()) return supabaseCerts.adminReviewCertification(id, status, adminNotes);
+  return mockReviewCertification(id, status, adminNotes);
+}
+
+/** @deprecated Use listCertifications */
+export const getMyCertifications = listCertifications;
+
+/** @deprecated Use adminListCertifications */
+export const getAllCertifications = adminListCertifications;
+
+/** @deprecated Use adminReviewCertification */
+export const reviewCertification = adminReviewCertification;

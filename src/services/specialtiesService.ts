@@ -1,10 +1,11 @@
 /**
- * Specialties service — mock-backed, Supabase-ready.
+ * Specialties service — mock-backed or Supabase (VITE_DATA_MODE).
  */
 
 import { SPECIALTIES, SPECIALTY_REQUESTS } from '@/data/mock-data';
-import { isSupabaseMode, supabaseNotWired } from '@/lib/dataMode';
+import { isSupabaseMode } from '@/lib/dataMode';
 import { getMyCertifications } from '@/services/certificationsService';
+import * as supabaseSpecialties from '@/services/supabase/specialtiesSupabase';
 import type { Specialty, SpecialtyRequest } from '@/types';
 
 const delay = (ms = 120) => new Promise<void>(r => setTimeout(r, ms));
@@ -12,32 +13,30 @@ const delay = (ms = 120) => new Promise<void>(r => setTimeout(r, ms));
 let specialtiesStore = [...SPECIALTIES];
 let requestsStore = [...SPECIALTY_REQUESTS];
 
-export async function getSpecialties(): Promise<Specialty[]> {
-  if (isSupabaseMode()) supabaseNotWired('specialties.getSpecialties');
+// ─── Mock implementations ─────────────────────────────────────
+
+async function mockGetSpecialties(): Promise<Specialty[]> {
   await delay();
   return specialtiesStore.map(s => ({ ...s }));
 }
 
-export async function getMySpecialtyRequests(): Promise<SpecialtyRequest[]> {
-  if (isSupabaseMode()) supabaseNotWired('specialties.getMySpecialtyRequests');
+async function mockGetMySpecialtyRequests(): Promise<SpecialtyRequest[]> {
   await delay();
   return requestsStore.filter(r => r.therapistId === 'therapist-001').map(r => ({ ...r }));
 }
 
-export async function getAllSpecialtyRequests(): Promise<SpecialtyRequest[]> {
-  if (isSupabaseMode()) supabaseNotWired('specialties.getAllSpecialtyRequests');
+async function mockGetAllSpecialtyRequests(): Promise<SpecialtyRequest[]> {
   await delay();
   return requestsStore.map(r => ({ ...r }));
 }
 
-export async function proposeSpecialty(input: {
+async function mockProposeSpecialty(input: {
   proposedName: string;
   proposedSlug?: string;
   description?: string;
   category?: string;
   notes?: string;
 }): Promise<SpecialtyRequest> {
-  if (isSupabaseMode()) supabaseNotWired('specialties.proposeSpecialty');
   await delay();
 
   const req: SpecialtyRequest = {
@@ -55,12 +54,11 @@ export async function proposeSpecialty(input: {
   return req;
 }
 
-export async function reviewSpecialtyRequest(
+async function mockReviewSpecialtyRequest(
   id: string,
   status: 'approved' | 'rejected',
   adminNotes?: string,
 ): Promise<SpecialtyRequest> {
-  if (isSupabaseMode()) supabaseNotWired('specialties.reviewSpecialtyRequest');
   await delay();
 
   const idx = requestsStore.findIndex(r => r.id === id);
@@ -96,8 +94,57 @@ export async function reviewSpecialtyRequest(
   return updated;
 }
 
+// ─── Public API (Phase 2A names + UI aliases) ─────────────────
+
+export async function listSpecialties(): Promise<Specialty[]> {
+  if (isSupabaseMode()) return supabaseSpecialties.listSpecialties();
+  return mockGetSpecialties();
+}
+
+export async function listSpecialtyRequests(): Promise<SpecialtyRequest[]> {
+  if (isSupabaseMode()) return supabaseSpecialties.listSpecialtyRequests();
+  return mockGetMySpecialtyRequests();
+}
+
+export async function adminListSpecialtyRequests(): Promise<SpecialtyRequest[]> {
+  if (isSupabaseMode()) return supabaseSpecialties.adminListSpecialtyRequests();
+  return mockGetAllSpecialtyRequests();
+}
+
+export async function proposeSpecialty(input: {
+  proposedName: string;
+  proposedSlug?: string;
+  description?: string;
+  category?: string;
+  notes?: string;
+}): Promise<SpecialtyRequest> {
+  if (isSupabaseMode()) return supabaseSpecialties.proposeSpecialty(input);
+  return mockProposeSpecialty(input);
+}
+
+export async function adminReviewSpecialtyRequest(
+  id: string,
+  status: 'approved' | 'rejected',
+  adminNotes?: string,
+): Promise<SpecialtyRequest> {
+  if (isSupabaseMode()) return supabaseSpecialties.adminReviewSpecialtyRequest(id, status, adminNotes);
+  return mockReviewSpecialtyRequest(id, status, adminNotes);
+}
+
+/** @deprecated Use listSpecialties — kept for existing UI imports */
+export const getSpecialties = listSpecialties;
+
+/** @deprecated Use listSpecialtyRequests */
+export const getMySpecialtyRequests = listSpecialtyRequests;
+
+/** @deprecated Use adminListSpecialtyRequests */
+export const getAllSpecialtyRequests = adminListSpecialtyRequests;
+
+/** @deprecated Use adminReviewSpecialtyRequest */
+export const reviewSpecialtyRequest = adminReviewSpecialtyRequest;
+
 export async function getApprovedSpecialties(): Promise<Specialty[]> {
-  const [specialties, certs] = await Promise.all([getSpecialties(), getMyCertifications()]);
+  const [specialties, certs] = await Promise.all([listSpecialties(), getMyCertifications()]);
   const approvedIds = new Set(
     certs.filter(c => c.status === 'approved').map(c => c.specialtyId),
   );
