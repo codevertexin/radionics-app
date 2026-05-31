@@ -150,3 +150,9 @@ export async function getApprovedSpecialties(): Promise<Specialty[]> {
   );
   return specialties.filter(s => approvedIds.has(s.id));
 }
+
+/** Reset in-memory mock stores — e.g. after logout. */
+export function resetSpecialtiesStores(): void {
+  specialtiesStore = [...SPECIALTIES];
+  requestsStore = [...SPECIALTY_REQUESTS];
+}

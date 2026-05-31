@@ -58,11 +58,24 @@ Guard: `RequireSupabaseAuth` (`src/lib/auth/RequireSupabaseAuth.tsx`)
 
 Outras rotas (dashboard, sessões list, clientes, etc.) **não** exigem login nesta fase.
 
-### Logout
+### Logout (comportamento final)
 
-- **Perfil:** botão "Terminar sessão" → `signOut()` + redirect `/auth/login`
-- **Sidebar:** botão "Terminar sessão" (visível só em supabase mode)
-- **Mock mode:** modal simulado (fecha sem efeito real)
+Único ponto de lógica: `signOut()` no `AuthProvider`. Perfil e Sidebar chamam apenas `await signOut()`.
+
+**Sequência ao clicar "Terminar sessão":**
+
+1. `session` → `null`, `user` → `null`, `loading` → `false` (UI deixa de mostrar auth imediatamente)
+2. `clearUserState()` — `queryClient.clear()` + reset stores mock
+3. `await supabase.auth.signOut({ scope: 'local' })` — limpa tokens em localStorage (não depende de rede)
+4. `navigate('/auth/login', { replace: true })`
+
+**Evento `SIGNED_OUT`:** força `session = null` e repete `clearUserState()`.
+
+**Guard:** `RequireSupabaseAuth` — se `!isAuthenticated` → `<Navigate to="/auth/login" />`.
+
+**Teste manual esperado:** Login → `/profile` → Terminar sessão → `/auth/login`; `/certifications` e `/specialties` redirecionam para login; sem dados em cache.
+
+**Nota:** `scope: 'local'` evita falhas de logout global que mantinham a sessão activa. Em mock mode, `isAuthenticated` permanece sempre `true` (sem fallback em supabase mode).
 
 ---
 
@@ -124,6 +137,7 @@ Até lá, tratar `src/lib/auth/*` como **código descartável de dev** — não 
 src/lib/auth/
   AuthProvider.tsx
   RequireSupabaseAuth.tsx
+  clearUserState.ts
 src/pages/auth/
   LoginPage.tsx
 src/routes/index.tsx          — rotas + ProtectedWithLayout

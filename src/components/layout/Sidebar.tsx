@@ -1,4 +1,4 @@
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Calendar, Users, FileText, BookOpen,
   Layers, User, ChevronLeft, ChevronRight, Zap, X, Award, LogOut,
@@ -34,14 +34,15 @@ interface SidebarProps {
 
 export function Sidebar({ collapsed, onToggle, mobile, mobileOpen, onMobileClose }: SidebarProps) {
   const location = useLocation().pathname;
-  const navigate = useNavigate();
   const { signOut } = useAuth();
   const supabaseMode = isSupabaseMode();
 
   const handleSignOut = async () => {
-    if (supabaseMode) {
+    if (!supabaseMode) return;
+    try {
       await signOut();
-      navigate('/auth/login', { replace: true });
+    } catch {
+      // signOut clears local state before throwing; guard still blocks protected routes
     }
     if (mobile) onMobileClose?.();
   };

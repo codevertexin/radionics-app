@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import {
   User, Mail, Phone, MapPin, Calendar, Star, CheckCircle2,
   Edit2, Save, Camera, Award, Sparkles, Globe, Instagram,
@@ -26,7 +26,6 @@ const THERAPIST = {
 
 export default function ProfilePage() {
   const { user, signOut } = useAuth();
-  const navigate = useNavigate();
   const supabaseMode = isSupabaseMode();
   const [editMode, setEditMode] = useState(false);
   const [form, setForm] = useState(THERAPIST);
@@ -46,14 +45,16 @@ export default function ProfilePage() {
   };
 
   const handleLogout = async () => {
+    if (!supabaseMode) {
+      setShowLogoutModal(false);
+      return;
+    }
+
     setLoggingOut(true);
     try {
-      if (supabaseMode) {
-        await signOut();
-        navigate('/auth/login', { replace: true });
-      } else {
-        setShowLogoutModal(false);
-      }
+      await signOut();
+    } catch {
+      setShowLogoutModal(false);
     } finally {
       setLoggingOut(false);
     }

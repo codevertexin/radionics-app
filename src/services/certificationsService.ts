@@ -188,3 +188,11 @@ export const getAllCertifications = adminListCertifications;
 
 /** @deprecated Use adminReviewCertification */
 export const reviewCertification = adminReviewCertification;
+
+/** Reset in-memory mock store — e.g. after logout. */
+export function resetCertificationsStore(): void {
+  certsStore = CERTIFICATIONS.map(c => ({
+    ...c,
+    documents: [...c.documents],
+  }));
+}
