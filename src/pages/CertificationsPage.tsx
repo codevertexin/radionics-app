@@ -4,7 +4,7 @@ import {
   CheckCircle2, Clock, Lock, Award, ChevronRight,
   FileText, Send, X, AlertCircle, Upload, Trash2, Info,
   Plus, XCircle, ShieldCheck, RefreshCw, ThumbsUp, ThumbsDown,
-  Sparkles, Star, Loader2
+  Sparkles, Star, Loader2, User, Mail,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { resolveSpecialtySlug } from '@/lib/slug';
@@ -926,6 +926,37 @@ function SpecialtyRequestRow({ req }: { req: SpecialtyRequest }) {
   );
 }
 
+// ─── Admin: requester display (read-only; HUB/Auth Core in production) ─
+function AdminRequesterInfo({
+  requesterName,
+  requesterEmail,
+}: {
+  requesterName?: string;
+  requesterEmail?: string;
+}) {
+  return (
+    <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-1)] px-3 py-2.5">
+      <p className="text-[10px] font-medium text-[var(--color-text-muted)] uppercase tracking-wider mb-2">
+        Submetido por
+      </p>
+      <div className="flex items-start gap-2.5">
+        <div className="w-8 h-8 rounded-lg bg-[var(--color-surface-2)] border border-[var(--color-border)] flex items-center justify-center shrink-0">
+          <User size={14} className="text-[var(--color-gold)]" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-xs font-semibold text-[var(--color-text-primary)] truncate">
+            {requesterName}
+          </p>
+          <p className="flex items-center gap-1 text-[10px] text-[var(--color-text-muted)] mt-0.5 truncate">
+            <Mail size={10} className="shrink-0" />
+            {requesterEmail}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Admin: cert review card ──────────────────────────────────
 function AdminCertCard({
   certification,
@@ -959,6 +990,11 @@ function AdminCertCard({
       </div>
 
       <div className="p-4 space-y-3">
+        <AdminRequesterInfo
+          requesterName={certification.requesterName}
+          requesterEmail={certification.requesterEmail}
+        />
+
         {/* Details */}
         <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-xs">
           <div>
@@ -1081,6 +1117,11 @@ function AdminSpecialtyReqCard({
         </div>
       </div>
       <div className="p-4 space-y-3">
+        <AdminRequesterInfo
+          requesterName={req.requesterName}
+          requesterEmail={req.requesterEmail}
+        />
+
         <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-xs">
           {req.category && (
             <div>
@@ -1088,10 +1129,12 @@ function AdminSpecialtyReqCard({
               <p className="font-medium text-[var(--color-text-primary)]">{req.category}</p>
             </div>
           )}
-          <div>
-            <span className="text-[var(--color-text-muted)]">Proposta por</span>
-            <p className="font-medium text-[var(--color-text-primary)]">Ana Beatriz Santos</p>
-          </div>
+          {req.proposedSlug && (
+            <div>
+              <span className="text-[var(--color-text-muted)]">Slug</span>
+              <p className="font-mono text-[10px] text-[var(--color-text-secondary)] truncate">{req.proposedSlug}</p>
+            </div>
+          )}
         </div>
         {req.description && (
           <p className="text-xs text-[var(--color-text-secondary)] leading-relaxed">{req.description}</p>

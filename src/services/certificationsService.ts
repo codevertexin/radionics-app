@@ -4,6 +4,7 @@
 
 import { CERTIFICATIONS } from '@/data/mock-data';
 import { isSupabaseMode } from '@/lib/dataMode';
+import { attachRequesterFields, fetchRequesterProfiles } from '@/lib/requesterProfiles';
 import { resolveSubmitAction, buildSubmitPayload } from '@/services/certificationSubmit';
 import * as supabaseCerts from '@/services/supabase/certificationsSupabase';
 import type { Certification, CertDocument, DocFileType } from '@/types';
@@ -239,7 +240,9 @@ export async function listCertifications(): Promise<Certification[]> {
 
 export async function adminListCertifications(): Promise<Certification[]> {
   if (isSupabaseMode()) return supabaseCerts.adminListCertifications();
-  return mockGetAllCertifications();
+  const certs = await mockGetAllCertifications();
+  const profiles = await fetchRequesterProfiles(certs.map(c => c.therapistId));
+  return attachRequesterFields(certs, profiles);
 }
 
 export async function listCertificationDocuments(certificationId: string): Promise<CertDocument[]> {

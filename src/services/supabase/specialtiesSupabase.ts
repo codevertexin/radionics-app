@@ -8,6 +8,7 @@ import {
   type SpecialtyRequestRow,
   type SpecialtyRow,
 } from '@/lib/supabase/mappers';
+import { attachRequesterFields, fetchRequesterProfiles } from '@/lib/requesterProfiles';
 import type { Specialty, SpecialtyRequest } from '@/types';
 
 export async function listSpecialties(): Promise<Specialty[]> {
@@ -46,7 +47,9 @@ export async function adminListSpecialtyRequests(): Promise<SpecialtyRequest[]> 
     .order('submitted_at', { ascending: false });
 
   if (error) wrapSupabaseError('adminListSpecialtyRequests', error);
-  return (data as SpecialtyRequestRow[]).map(mapSpecialtyRequest);
+  const requests = (data as SpecialtyRequestRow[]).map(mapSpecialtyRequest);
+  const profiles = await fetchRequesterProfiles(requests.map(r => r.therapistId));
+  return attachRequesterFields(requests, profiles);
 }
 
 export async function proposeSpecialty(input: {

@@ -189,6 +189,15 @@ Função central actual: `src/lib/auth/clearUserState.ts` — **reutilizar** na 
 | Audit log de auth | Login/logout central |
 | Roles globais | `admin`, `therapist`, etc. |
 
+### 5.1.1 Dados admin de visualização (requester)
+
+`requesterName` / `requesterEmail` nos cartões Admin **não são guardados** em tabelas RADIONICS.
+
+| Fase | Origem |
+|------|--------|
+| Dev Supabase | RPC `radionics_admin_requester_profiles` (leitura `auth.users`, admin only) |
+| Produção | HUB / Auth Core — nome e email canónicos do terapeuta |
+
 ### 5.2 Fica no RADIONICS (Supabase)
 
 | Dado | Tabelas / storage |

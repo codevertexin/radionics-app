@@ -71,6 +71,9 @@ export interface SpecialtyRequest {
   reviewedAt?: string;
   submittedAt: string;
   createdAt?: string;
+  /** Admin UI only — from HUB/Auth Core or auth.users RPC; not stored in RADIONICS. */
+  requesterName?: string;
+  requesterEmail?: string;
 }
 
 // Maps to: therapist_specialty_certifications
@@ -96,6 +99,9 @@ export interface Certification {
   createdAt?: string;
   updatedAt?: string;
   documents: CertDocument[];           // one-to-many
+  /** Admin UI only — from HUB/Auth Core or auth.users RPC; not stored in RADIONICS. */
+  requesterName?: string;
+  requesterEmail?: string;
 }
 
 // Maps to: therapist_specialty_documents

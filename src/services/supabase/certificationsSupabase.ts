@@ -10,6 +10,7 @@ import {
   type CertDocumentRow,
   type CertificationRow,
 } from '@/lib/supabase/mappers';
+import { attachRequesterFields, fetchRequesterProfiles } from '@/lib/requesterProfiles';
 import { resolveSubmitAction, buildSubmitPayload } from '@/services/certificationSubmit';
 import type { Certification, CertDocument } from '@/types';
 
@@ -121,7 +122,9 @@ export async function adminListCertifications(): Promise<Certification[]> {
     .order('updated_at', { ascending: false });
 
   if (error) wrapSupabaseError('adminListCertifications', error);
-  return mapCertRows((data ?? []) as CertificationRow[]);
+  const certs = await mapCertRows((data ?? []) as CertificationRow[]);
+  const profiles = await fetchRequesterProfiles(certs.map(c => c.therapistId));
+  return attachRequesterFields(certs, profiles);
 }
 
 export async function listCertificationDocuments(certificationId: string): Promise<CertDocument[]> {

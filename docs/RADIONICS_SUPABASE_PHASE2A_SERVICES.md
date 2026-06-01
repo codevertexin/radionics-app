@@ -141,6 +141,22 @@ Uma única linha em `therapist_specialty_certifications` por par terapeuta × es
 
 **Admin:** `adminReviewCertification()` faz `UPDATE` na linha existente — nunca cria duplicado.
 
+### Admin — dados do terapeuta (visualização)
+
+Campos **não persistidos** em RADIONICS (apenas resposta API para UI):
+
+- `requesterName` / `requesterEmail` em certificações e propostas de especialidade
+
+| Modo | Fonte |
+|------|--------|
+| **Mock** | Mapa fixo dev (`therapist-001`) |
+| **Supabase dev** | RPC `radionics_admin_requester_profiles(uuid[])` → `auth.users` (só se `is_radionics_admin()`) |
+| **Produção (futuro)** | HUB / Auth Core — perfil global do ecossistema |
+
+Fallback: `Nome indisponível` / `Email indisponível`.
+
+Migration: `20260531140000_radionics_admin_requester_profiles.sql`.
+
 ---
 
 ## Storage

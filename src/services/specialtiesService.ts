@@ -4,6 +4,7 @@
 
 import { SPECIALTIES, SPECIALTY_REQUESTS } from '@/data/mock-data';
 import { isSupabaseMode } from '@/lib/dataMode';
+import { attachRequesterFields, fetchRequesterProfiles } from '@/lib/requesterProfiles';
 import { resolveSpecialtySlug } from '@/lib/slug';
 import { getMyCertifications } from '@/services/certificationsService';
 import * as supabaseSpecialties from '@/services/supabase/specialtiesSupabase';
@@ -109,7 +110,9 @@ export async function listSpecialtyRequests(): Promise<SpecialtyRequest[]> {
 
 export async function adminListSpecialtyRequests(): Promise<SpecialtyRequest[]> {
   if (isSupabaseMode()) return supabaseSpecialties.adminListSpecialtyRequests();
-  return mockGetAllSpecialtyRequests();
+  const requests = await mockGetAllSpecialtyRequests();
+  const profiles = await fetchRequesterProfiles(requests.map(r => r.therapistId));
+  return attachRequesterFields(requests, profiles);
 }
 
 export async function proposeSpecialty(input: {
