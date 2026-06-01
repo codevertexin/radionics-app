@@ -1,8 +1,30 @@
 # RADIONICS — Auth Dev Mode (Phase 2B)
 
 **Date:** 2026-05-31  
-**Scope:** Login/logout mínimo via Supabase Auth para testar RLS, specialties, certifications e storage.  
-**Status:** Temporário / desenvolvimento — **não** é o modelo final de autenticação.
+**Scope:** Login/logout mínimo via Supabase Auth para testar RLS, Storage e services em `VITE_DATA_MODE=supabase`.  
+**Status:** ⚠️ **Temporário / desenvolvimento — não é o fluxo final de autenticação.**
+
+> **Decisão arquitectural:** O login email/password em `/auth/login` existe **apenas para dev/QA**.  
+> **Não deve ir para produção** como auth principal do RADIONICS.  
+> Ver plano de integração: [`RADIONICS_HUB_AUTH_INTEGRATION_PLAN.md`](./RADIONICS_HUB_AUTH_INTEGRATION_PLAN.md)
+
+---
+
+## Auth Dev vs Auth Final (HUB)
+
+| Aspecto | Auth Dev (actual) | Auth Final (HUB / Auth Core) |
+|---------|-------------------|------------------------------|
+| Login | Supabase email/password local (`/auth/login`) | HUB — login centralizado ByElamor |
+| Registo | Não implementado (users criados no Dashboard) | HUB — registo público |
+| Logout | `supabase.auth.signOut({ scope: 'local' })` | HUB — logout global do ecossistema |
+| Password recovery | Não implementado | HUB |
+| Perfil global | Mock local + email Supabase | HUB — nome, avatar, contactos, billing |
+| Identidade para RLS | `auth.uid()` Supabase directo | Token/sessão emitida pelo Auth Core → Supabase |
+| Produção | ❌ Não usar como auth principal | ✅ Único fluxo de produção |
+
+**O que o Auth Dev permite testar hoje:** RLS (`auth.uid()`), Storage, specialties/certifications services, guards de rota, limpeza de cache no logout.
+
+**O que o Auth Dev não substitui:** SSO, registo, recuperação de password, perfil global, billing, roles cross-app, auditoria centralizada.
 
 ---
 
@@ -109,25 +131,35 @@ VALUES ('<uuid-do-utilizador>', 'dev admin');
 
 ## O que NÃO foi implementado (de propósito)
 
+Estes fluxos pertencem ao **HUB/Auth Core**, não ao RADIONICS:
+
 - Registo público
 - Magic link / OAuth / Google
+- Recuperação de password
 - HUB SSO
 - Auth Core
 - Billing
-- Roles complexas (admin continua via `radionics_admin_allowlist` + JWT placeholder)
+- Perfil global editável
+- Roles complexas cross-app (admin continua via `radionics_admin_allowlist` + JWT placeholder)
+
+**Não implementar estes fluxos no RADIONICS** enquanto a integração HUB não estiver definida — evita divergência e dívida técnica.
 
 ---
 
 ## Integração futura (HUB / Auth Core)
 
-Este AuthProvider será **substituído** quando o HUB/Auth Core estiver integrado:
+Este AuthProvider e `/auth/login` serão **removidos ou substituídos** na integração HUB.
 
-- SSO centralizado no ecossistema ByElamor
-- Claims/roles vindos do HUB (`radionics_role`, etc.)
-- Perfil global partilhado entre apps
-- Remoção do login email/password dev em `/auth/login`
+Plano detalhado: [`RADIONICS_HUB_AUTH_INTEGRATION_PLAN.md`](./RADIONICS_HUB_AUTH_INTEGRATION_PLAN.md)
 
-Até lá, tratar `src/lib/auth/*` como **código descartável de dev** — não construir features de produto em cima desta camada.
+Resumo:
+
+- SSO centralizado no ecossistema ByElamor (`VITE_HUB_URL`)
+- Claims/roles vindos do Auth Core (`radionics_role`, etc.)
+- Perfil global partilhado entre apps (RADIONICS só consome/leitura)
+- RADIONICS deixa de expor páginas de login/registo próprias
+
+Até lá, tratar `src/lib/auth/*` e `src/pages/auth/*` como **código descartável de dev** — não construir features de produto em cima desta camada.
 
 ---
 
