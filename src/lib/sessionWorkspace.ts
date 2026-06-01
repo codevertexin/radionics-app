@@ -2,6 +2,7 @@
  * Workspace ↔ sessions store — normalização, contagens e transições de status.
  */
 
+import { getToolsByMethodology } from '@/data/mock-data';
 import type { Session, SessionStatus, ToolResult, FieldValue } from '@/types';
 import type { StageCompletion } from '@/lib/session-state';
 
@@ -47,18 +48,46 @@ export function mergeToolResults(
   return [...byId.values()];
 }
 
-/** Garante toolResults no topo da sessão (store + seed). */
+/** Garante toolResults no topo da sessão (store + seed). Top-level ganha sobre stages. */
 export function normalizeSessionWorkspace(session: Session): Session {
   const fromStages = collectToolResultsFromStages(session);
-  const toolResults = session.toolResults?.length
-    ? mergeToolResults(session.toolResults, fromStages)
-    : fromStages;
+  const toolResults = mergeToolResults(session.toolResults ?? [], fromStages);
 
   return {
     ...session,
     toolResults,
     fieldValues: session.fieldValues ?? {},
   };
+}
+
+export function cloneToolResults(list: ToolResult[]): ToolResult[] {
+  return list.map(tr => ({
+    ...tr,
+    voiceNotes: tr.voiceNotes?.map(n => ({ ...n })),
+  }));
+}
+
+/** Aplica patch a um gráfico e devolve o array completo (imutável). */
+export function applyToolResultPatch(
+  prev: ToolResult[],
+  toolId: string,
+  patch: Partial<Omit<ToolResult, 'toolId'>>,
+  methodologyId: string,
+): ToolResult[] {
+  const existing = prev.find(r => r.toolId === toolId);
+  if (existing) {
+    return prev.map(r => (r.toolId === toolId ? { ...r, ...patch } : r));
+  }
+  const tools = getToolsByMethodology(methodologyId);
+  const tool = tools.find(t => t.id === toolId);
+  const base: ToolResult = {
+    toolId,
+    toolName: tool?.name ?? toolId,
+    toolImageUrl: tool?.imageUrl ?? '',
+    status: 'not_analyzed',
+    ...patch,
+  };
+  return [...prev, base];
 }
 
 export function hasMeaningfulWorkspaceActivity(input: {

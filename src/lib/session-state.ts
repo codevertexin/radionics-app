@@ -6,12 +6,14 @@
  *
  * NOTE: Browser audio API not wired — voice note recording is mock-only.
  */
-import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import type {
   ToolResult, VoiceNote, SessionStateSnapshot, FieldValue, SessionStage,
 } from '@/types';
 import { getToolsByMethodology } from '@/data/mock-data';
-import { collectToolResultsFromStages } from '@/lib/sessionWorkspace';
+import { applyToolResultPatch, collectToolResultsFromStages } from '@/lib/sessionWorkspace';
+
+export { applyToolResultPatch };
 
 // ── Stage completion rules ─────────────────────────────────────
 export interface StageCompletion {
@@ -43,6 +45,7 @@ export interface SessionState {
   fieldValues: Record<string, FieldValue>;
 
   setToolResult: (toolId: string, patch: Partial<Omit<ToolResult, 'toolId'>>) => void;
+  replaceToolResults: (results: ToolResult[]) => void;
   setHawkinsInitial: (v: number | null) => void;
   setHawkinsFinal: (v: number | null) => void;
   setReverbDays: (v: number | null) => void;
@@ -88,6 +91,37 @@ function resolveInitialToolResults(source: SessionStateSource): ToolResult[] {
   return [];
 }
 
+/** Calcula regras de conclusão de etapas a partir de toolResults + Hawkins. */
+export function computeStageCompletion(
+  methodologyId: string,
+  toolResults: ToolResult[],
+  hawkinsInitial: number | null,
+  hawkinsFinal: number | null,
+  reverbDays: number | null,
+): StageCompletion {
+  const tools = getToolsByMethodology(methodologyId);
+
+  const diagnosisDone = tools.length > 0 && tools.every(t => {
+    const r = toolResults.find(x => x.toolId === t.id);
+    const s = r?.status ?? 'not_analyzed';
+    return s !== 'not_analyzed' && s !== 'in_analysis';
+  });
+
+  const identifiedInDiagnosis = toolResults.filter(r =>
+    r.status === 'identified' || r.status === 'activated',
+  );
+  const activationsDone = identifiedInDiagnosis.length > 0 &&
+    identifiedInDiagnosis.every(r => r.status === 'activated' || r.status === 'skipped');
+
+  return {
+    preparation: hawkinsInitial !== null,
+    connection: true,
+    diagnosis: diagnosisDone,
+    activations: activationsDone,
+    closing: hawkinsFinal !== null && reverbDays !== null,
+  };
+}
+
 export function useSessionState(session: SessionStateSource): SessionState {
   const [toolResults, setToolResults] = useState<ToolResult[]>(() =>
     resolveInitialToolResults(session),
@@ -99,33 +133,27 @@ export function useSessionState(session: SessionStateSource): SessionState {
     () => ({ ...(session.fieldValues ?? {}) }),
   );
 
+  const hydratedSessionIdRef = useRef<string | null>(null);
+
+  /** Hidrata só ao abrir outra sessão — não em cada updateSession (evita apagar edição local). */
   useEffect(() => {
     if (!session.id) return;
+    if (hydratedSessionIdRef.current === session.id) return;
+    hydratedSessionIdRef.current = session.id;
     setToolResults(resolveInitialToolResults(session));
     setHawkinsInitial(session.hawkinsInitial ?? null);
     setHawkinsFinal(session.hawkinsFinal ?? null);
     setReverbDays(session.reverberationDays ?? null);
     setFieldValues({ ...(session.fieldValues ?? {}) });
-  }, [session.id, session.updatedAt]);
+  }, [session]);
+
+  const replaceToolResults = useCallback((results: ToolResult[]) => {
+    setToolResults(results.map(r => ({ ...r, voiceNotes: r.voiceNotes?.map(n => ({ ...n })) })));
+  }, []);
 
   // ── Upsert a ToolResult ──────────────────────────────────────
   const setToolResult = useCallback((toolId: string, patch: Partial<Omit<ToolResult, 'toolId'>>) => {
-    setToolResults(prev => {
-      const existing = prev.find(r => r.toolId === toolId);
-      if (existing) {
-        return prev.map(r => r.toolId === toolId ? { ...r, ...patch } : r);
-      }
-      const tools = getToolsByMethodology(session.methodologyId);
-      const tool = tools.find(t => t.id === toolId);
-      const base: ToolResult = {
-        toolId,
-        toolName: tool?.name ?? toolId,
-        toolImageUrl: tool?.imageUrl ?? '',
-        status: 'not_analyzed',
-        ...patch,
-      };
-      return [...prev, base];
-    });
+    setToolResults(prev => applyToolResultPatch(prev, toolId, patch, session.methodologyId));
   }, [session.methodologyId]);
 
   // ── Field values ─────────────────────────────────────────────
@@ -149,29 +177,15 @@ export function useSessionState(session: SessionStateSource): SessionState {
   }, [setToolResult]);
 
   // ── Stage completion ─────────────────────────────────────────
-  const stageCompletion = useMemo<StageCompletion>(() => {
-    const tools = getToolsByMethodology(session.methodologyId);
-
-    const diagnosisDone = tools.length > 0 && tools.every(t => {
-      const r = toolResults.find(x => x.toolId === t.id);
-      const s = r?.status ?? 'not_analyzed';
-      return s !== 'not_analyzed' && s !== 'in_analysis';
-    });
-
-    const identifiedInDiagnosis = toolResults.filter(r =>
-      r.status === 'identified' || r.status === 'activated',
-    );
-    const activationsDone = identifiedInDiagnosis.length > 0 &&
-      identifiedInDiagnosis.every(r => r.status === 'activated' || r.status === 'skipped');
-
-    return {
-      preparation: hawkinsInitial !== null,
-      connection: true,
-      diagnosis: diagnosisDone,
-      activations: activationsDone,
-      closing: hawkinsFinal !== null && reverbDays !== null,
-    };
-  }, [toolResults, hawkinsInitial, hawkinsFinal, reverbDays, session.methodologyId]);
+  const stageCompletion = useMemo<StageCompletion>(() => (
+    computeStageCompletion(
+      session.methodologyId,
+      toolResults,
+      hawkinsInitial,
+      hawkinsFinal,
+      reverbDays,
+    )
+  ), [toolResults, hawkinsInitial, hawkinsFinal, reverbDays, session.methodologyId]);
 
   // ── Supabase-ready snapshot ──────────────────────────────────
   const sessionSnapshot = useMemo<SessionStateSnapshot>(() => ({
@@ -194,6 +208,7 @@ export function useSessionState(session: SessionStateSource): SessionState {
     reverbDays,
     fieldValues,
     setToolResult,
+    replaceToolResults,
     setHawkinsInitial,
     setHawkinsFinal,
     setReverbDays,

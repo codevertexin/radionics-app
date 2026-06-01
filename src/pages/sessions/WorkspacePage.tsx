@@ -13,9 +13,11 @@ import { cn } from '@/lib/utils';
 import { MOCK_SAVE_LABELS } from '@/lib/dataMode';
 import { HAWKINS_LEVELS, getToolsByMethodology, TOOLS_RAD35 } from '@/data/mock-data';
 import { getSessionById, updateSession } from '@/services/sessionsService';
-import { useSessionState } from '@/lib/session-state';
+import { applyToolResultPatch, computeStageCompletion, useSessionState } from '@/lib/session-state';
 import { buildWorkspacePersistPayload, countToolWork } from '@/lib/sessionWorkspace';
-import type { Session, SessionStage, ToolResult, HawkinsLevel, Tool, ToolIntensity } from '@/types';
+import type {
+  Session, SessionStage, ToolResult, HawkinsLevel, Tool, ToolIntensity, FieldValue,
+} from '@/types';
 
 // ─── Tool status config ────────────────────────────────────────
 const TOOL_STATUS_STYLES: Record<string, { border: string; bg: string; label: string; dot: string; badge: string }> = {
@@ -1304,10 +1306,11 @@ function ClosingStage({ session, hawkinsInitial, hawkinsFinal, reverbDays, onHaw
 }
 
 // ─── Voice Note Bar ────────────────────────────────────────────
-function VoiceNoteBar({ globalRecording, onToggleRecording, savedAt }: {
+function VoiceNoteBar({ globalRecording, onToggleRecording, savedAt, saveError }: {
   globalRecording: boolean;
   onToggleRecording: () => void;
   savedAt: string;
+  saveError: string | null;
 }) {
   const [tick, setTick] = useState(0);
   const [time, setTime] = useState(0);
@@ -1354,9 +1357,15 @@ function VoiceNoteBar({ globalRecording, onToggleRecording, savedAt }: {
         </span>
       )}
 
-      <div className="ml-auto flex items-center gap-1.5 text-[var(--color-text-muted)] flex-shrink-0">
-        <Save size={11} />
-        <span className="text-[10px]">{MOCK_SAVE_LABELS.savedAt(savedAt)}</span>
+      <div className="ml-auto flex flex-col items-end gap-0.5 flex-shrink-0 max-w-[50%]">
+        {saveError ? (
+          <span className="text-[10px] text-red-400 text-right">{saveError}</span>
+        ) : (
+          <div className="flex items-center gap-1.5 text-[var(--color-text-muted)]">
+            <Save size={11} />
+            <span className="text-[10px]">{MOCK_SAVE_LABELS.savedAt(savedAt)}</span>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1462,6 +1471,8 @@ export default function WorkspacePage() {
   const [savedAt, setSavedAt] = useState(
     () => new Date().toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' }),
   );
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [isPersisting, setIsPersisting] = useState(false);
 
   useEffect(() => {
     if (session?.currentStageCode) {
@@ -1493,6 +1504,7 @@ export default function WorkspacePage() {
     reverbDays,
     fieldValues,
     setToolResult,
+    replaceToolResults,
     setHawkinsInitial,
     setHawkinsFinal,
     setReverbDays,
@@ -1501,85 +1513,137 @@ export default function WorkspacePage() {
   } = sessionState;
 
   const stageCompletionMap: Record<string, boolean> = { ...stageCompletion };
-  const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const persistWorkspace = useCallback(async (opts?: { forceCompleted?: boolean }) => {
-    if (!session) return;
-    const payload = buildWorkspacePersistPayload(session, {
-      toolResults,
-      fieldValues,
-      hawkinsInitial,
-      hawkinsFinal,
-      reverbDays,
-      currentStageCode: currentStage,
-      stageCompletion,
-      forceCompleted: opts?.forceCompleted,
-    });
+  type WorkspaceDraft = {
+    toolResults: ToolResult[];
+    fieldValues: Record<string, FieldValue>;
+    hawkinsInitial: number | null;
+    hawkinsFinal: number | null;
+    reverbDays: number | null;
+    currentStageCode: string;
+  };
 
-    const updated = await updateSession(id, {
-      toolResults: payload.toolResults,
-      fieldValues: payload.fieldValues,
-      hawkinsInitial: hawkinsInitial ?? undefined,
-      hawkinsFinal: hawkinsFinal ?? undefined,
-      reverberationDays: reverbDays ?? undefined,
-      currentStageCode: currentStage,
-      status: payload.status,
-      completedAt: payload.completedAt,
-    });
-    if (updated) {
+  const markSaveSuccess = useCallback(() => {
+    const now = new Date().toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' });
+    setSavedAt(now);
+    setSaveError(null);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  }, []);
+
+  const persistWorkspace = useCallback(async (
+    draft?: Partial<WorkspaceDraft>,
+    opts?: { forceCompleted?: boolean },
+  ): Promise<boolean> => {
+    if (!session) return false;
+    setIsPersisting(true);
+    setSaveError(null);
+
+    const d: WorkspaceDraft = {
+      toolResults: draft?.toolResults ?? toolResults,
+      fieldValues: draft?.fieldValues ?? fieldValues,
+      hawkinsInitial: draft?.hawkinsInitial !== undefined ? draft.hawkinsInitial : hawkinsInitial,
+      hawkinsFinal: draft?.hawkinsFinal !== undefined ? draft.hawkinsFinal : hawkinsFinal,
+      reverbDays: draft?.reverbDays !== undefined ? draft.reverbDays : reverbDays,
+      currentStageCode: draft?.currentStageCode ?? currentStage,
+    };
+
+    const stageCompletionForSave = computeStageCompletion(
+      session.methodologyId,
+      d.toolResults,
+      d.hawkinsInitial,
+      d.hawkinsFinal,
+      d.reverbDays,
+    );
+
+    try {
+      const payload = buildWorkspacePersistPayload(session, {
+        ...d,
+        stageCompletion: stageCompletionForSave,
+        forceCompleted: opts?.forceCompleted,
+      });
+
+      const updated = await updateSession(id, {
+        toolResults: payload.toolResults,
+        fieldValues: payload.fieldValues,
+        hawkinsInitial: d.hawkinsInitial ?? undefined,
+        hawkinsFinal: d.hawkinsFinal ?? undefined,
+        reverberationDays: d.reverbDays ?? undefined,
+        currentStageCode: d.currentStageCode,
+        status: payload.status,
+        completedAt: payload.completedAt,
+      });
+
+      if (!updated) {
+        setSaveError('Não foi possível guardar a sessão.');
+        return false;
+      }
+
       queryClient.setQueryData(['session', id], updated);
+      await queryClient.invalidateQueries({ queryKey: ['sessions'] });
+      markSaveSuccess();
+      return true;
+    } catch {
+      setSaveError('Erro ao guardar localmente. Tente novamente.');
+      return false;
+    } finally {
+      setIsPersisting(false);
     }
-    await queryClient.invalidateQueries({ queryKey: ['sessions'] });
   }, [
     session, id, toolResults, fieldValues, hawkinsInitial, hawkinsFinal, reverbDays,
-    currentStage, stageCompletion, queryClient,
+    currentStage, queryClient, markSaveSuccess,
   ]);
 
-  const schedulePersist = useCallback((opts?: { forceCompleted?: boolean }) => {
-    if (persistTimerRef.current) clearTimeout(persistTimerRef.current);
-    persistTimerRef.current = setTimeout(() => {
-      void persistWorkspace(opts);
-    }, 400);
+  const persistRef = useRef(persistWorkspace);
+  persistRef.current = persistWorkspace;
+
+  useEffect(() => () => {
+    void persistRef.current();
+  }, []);
+
+  const selectStage = useCallback(async (code: string) => {
+    setCurrentStage(code);
+    await persistWorkspace({ currentStageCode: code });
   }, [persistWorkspace]);
 
-  const selectStage = useCallback((code: string) => {
-    setCurrentStage(code);
-    schedulePersist();
-  }, [schedulePersist]);
-
-  const handleHawkinsInitial = useCallback((v: number | null) => {
+  const handleHawkinsInitial = useCallback(async (v: number) => {
     setHawkinsInitial(v);
-    schedulePersist();
-  }, [setHawkinsInitial, schedulePersist]);
+    await persistWorkspace({ hawkinsInitial: v });
+  }, [setHawkinsInitial, persistWorkspace]);
 
-  const handleHawkinsFinal = useCallback((v: number | null) => {
+  const handleHawkinsFinal = useCallback(async (v: number) => {
     setHawkinsFinal(v);
-    schedulePersist();
-  }, [setHawkinsFinal, schedulePersist]);
+    await persistWorkspace({ hawkinsFinal: v });
+  }, [setHawkinsFinal, persistWorkspace]);
 
-  const handleReverbDays = useCallback((v: number | null) => {
+  const handleReverbDays = useCallback(async (v: number) => {
     setReverbDays(v);
-    schedulePersist();
-  }, [setReverbDays, schedulePersist]);
+    await persistWorkspace({ reverbDays: v });
+  }, [setReverbDays, persistWorkspace]);
 
-  // Unified handler — used by both Diagnosis and Activations
-  const handleToolResultChange = useCallback((toolId: string, patch: Partial<Omit<ToolResult, 'toolId'>>) => {
-    setToolResult(toolId, patch);
-    schedulePersist();
-  }, [setToolResult, schedulePersist]);
+  const handleToolResultChange = useCallback(async (
+    toolId: string,
+    patch: Partial<Omit<ToolResult, 'toolId'>>,
+  ) => {
+    if (!session) return;
+    const nextTools = applyToolResultPatch(
+      toolResults,
+      toolId,
+      patch,
+      session.methodologyId,
+    );
+    replaceToolResults(nextTools);
+    await persistWorkspace({ toolResults: nextTools });
+  }, [session, toolResults, replaceToolResults, persistWorkspace]);
 
   const handleSave = async () => {
     if (!session) return;
     await persistWorkspace();
-    const now = new Date().toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' });
-    setSavedAt(now);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
   };
 
   const handleOpenReportPreview = useCallback(async () => {
-    await persistWorkspace();
-    setShowReportPreview(true);
+    const ok = await persistWorkspace();
+    if (ok) setShowReportPreview(true);
   }, [persistWorkspace]);
 
   if (isLoading) {
@@ -1671,14 +1735,15 @@ export default function WorkspacePage() {
           <div className="w-px h-4 bg-[var(--color-border)] mx-1" />
 
           <button
-            onClick={handleSave}
+            onClick={() => void handleSave()}
+            disabled={isPersisting}
             className={cn(
-              'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all',
+              'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all disabled:opacity-50',
               saved ? 'border-emerald-500 bg-emerald-500/10 text-emerald-400' : 'border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-border-strong)]'
             )}
           >
             {saved ? <CheckCircle2 size={11} /> : <Save size={11} />}
-            {saved ? MOCK_SAVE_LABELS.saved : 'Guardar'}
+            {isPersisting ? MOCK_SAVE_LABELS.saving : saved ? MOCK_SAVE_LABELS.saved : 'Guardar'}
           </button>
 
           <button
@@ -1726,7 +1791,12 @@ export default function WorkspacePage() {
               />
             )}
           </div>
-          <VoiceNoteBar globalRecording={globalRecording} onToggleRecording={() => setGlobalRecording(r => !r)} savedAt={savedAt} />
+          <VoiceNoteBar
+            globalRecording={globalRecording}
+            onToggleRecording={() => setGlobalRecording(r => !r)}
+            savedAt={savedAt}
+            saveError={saveError}
+          />
         </div>
 
         <AssistantPanel session={session} currentStage={currentStage} toolResults={toolResults} />
@@ -1739,7 +1809,7 @@ export default function WorkspacePage() {
           snapshot={sessionSnapshot}
           onClose={() => setShowReportPreview(false)}
           onGenerate={async () => {
-            await persistWorkspace({ forceCompleted: true });
+            await persistWorkspace(undefined, { forceCompleted: true });
             setShowReportPreview(false);
             navigate('/reports');
           }}

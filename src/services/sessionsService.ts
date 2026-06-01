@@ -8,7 +8,7 @@
 import { SESSIONS, TEMPLATES, METHODOLOGIES } from '@/data/mock-data';
 import { getClientById } from '@/services/clientsService';
 import { resolveSpecialtyToMethodologyId } from '@/lib/sessionTemplates';
-import { normalizeSessionWorkspace } from '@/lib/sessionWorkspace';
+import { cloneToolResults, normalizeSessionWorkspace } from '@/lib/sessionWorkspace';
 import type { Session, SessionMode } from '@/types';
 
 const delay = (ms = 100) => new Promise<void>(r => setTimeout(r, ms));
@@ -112,11 +112,18 @@ export async function updateSession(id: string, patch: Partial<Session>): Promis
   const idx = sessionsStore.findIndex(s => s.id === id);
   if (idx === -1) return undefined;
 
-  sessionsStore[idx] = {
-    ...sessionsStore[idx],
+  const prev = sessionsStore[idx];
+  sessionsStore[idx] = normalizeSessionWorkspace({
+    ...prev,
     ...patch,
+    toolResults: patch.toolResults !== undefined
+      ? cloneToolResults(patch.toolResults)
+      : prev.toolResults,
+    fieldValues: patch.fieldValues !== undefined
+      ? { ...patch.fieldValues }
+      : prev.fieldValues,
     updatedAt: new Date().toISOString(),
-  };
+  });
   return cloneSession(sessionsStore[idx]);
 }
 
