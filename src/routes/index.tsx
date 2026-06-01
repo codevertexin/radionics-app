@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { AppLayout } from '@/layouts/AppLayout';
 import { RequireSupabaseAuth } from '@/lib/auth/RequireSupabaseAuth';
+import { isSupabaseMode } from '@/lib/dataMode';
 import IndexPage from '@/pages/IndexPage';
 import DashboardPage from '@/pages/DashboardPage';
 import SessionsPage from '@/pages/sessions/SessionsPage';
@@ -20,6 +21,8 @@ import SpecialtiesPage from '@/pages/SpecialtiesPage';
 import CertificationsPage from '@/pages/CertificationsPage';
 import ProfilePage from '@/pages/ProfilePage';
 import LoginPage from '@/pages/auth/LoginPage';
+import MethodologyDebugPage from '@/pages/methodology/MethodologyDebugPage';
+import { MethodologyDebugGate } from '@/components/methodology/MethodologyDebugGate';
 
 function WithLayout({ children }: { children: React.ReactNode }) {
   return <AppLayout>{children}</AppLayout>;
@@ -56,6 +59,24 @@ export function AppRoutes() {
       <Route path="/methodologies" element={<Navigate to="/specialties" replace />} />
       <Route path="/certifications" element={<ProtectedWithLayout><CertificationsPage /></ProtectedWithLayout>} />
       <Route path="/profile" element={<ProtectedWithLayout><ProfilePage /></ProtectedWithLayout>} />
+      <Route
+        path="/methodology-debug/:specialtySlug"
+        element={
+          isSupabaseMode() ? (
+            <ProtectedWithLayout>
+              <MethodologyDebugGate>
+                <MethodologyDebugPage />
+              </MethodologyDebugGate>
+            </ProtectedWithLayout>
+          ) : (
+            <MethodologyDebugGate>
+              <WithLayout>
+                <MethodologyDebugPage />
+              </WithLayout>
+            </MethodologyDebugGate>
+          )
+        }
+      />
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
   );

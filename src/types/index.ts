@@ -447,3 +447,15 @@ export interface ReportV2 extends Report {
   finalInterpretation?: string;
   therapistNotes?: string;
 }
+
+export type {
+  MethodologyTool,
+  MethodologyAsset,
+  SpecialtyToolLink,
+  SpecialtyAssetContent,
+  SpecialtyMethodologyContext,
+  MethodologyToolType,
+  MethodologyAssetType,
+  MethodologyUsageMode,
+  MethodologyCatalogStatus,
+} from '@/types/methodology-engine';
