@@ -8,6 +8,7 @@
 import { SESSIONS, TEMPLATES, METHODOLOGIES } from '@/data/mock-data';
 import { getClientById } from '@/services/clientsService';
 import { resolveSpecialtyToMethodologyId } from '@/lib/sessionTemplates';
+import { normalizeSessionWorkspace } from '@/lib/sessionWorkspace';
 import type { Session, SessionMode } from '@/types';
 
 const delay = (ms = 100) => new Promise<void>(r => setTimeout(r, ms));
@@ -16,13 +17,18 @@ const delay = (ms = 100) => new Promise<void>(r => setTimeout(r, ms));
 let sessionsStore: Session[] = SESSIONS.map(s => ({ ...s }));
 
 function cloneSession(session: Session): Session {
-  return {
+  return normalizeSessionWorkspace({
     ...session,
     stages: session.stages.map(stage => ({
       ...stage,
-      steps: stage.steps?.map(step => ({ ...step })) ?? [],
+      steps: stage.steps?.map(step => ({
+        ...step,
+        toolResults: step.toolResults?.map(tr => ({ ...tr })),
+      })) ?? [],
     })),
-  };
+    toolResults: session.toolResults?.map(tr => ({ ...tr })),
+    fieldValues: session.fieldValues ? { ...session.fieldValues } : undefined,
+  });
 }
 
 export async function listSessions(): Promise<Session[]> {
@@ -88,6 +94,8 @@ export async function createSession(input: CreateSessionInput): Promise<Session>
       { code: 'activations', label: 'Ativações', status: 'not_started', steps: [] },
       { code: 'closing', label: 'Encerramento', status: 'not_started', steps: [] },
     ],
+    toolResults: [],
+    fieldValues: {},
     createdAt: now,
     updatedAt: now,
     scheduledAt: now,

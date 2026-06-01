@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -14,6 +14,7 @@ import { MOCK_SAVE_LABELS } from '@/lib/dataMode';
 import { HAWKINS_LEVELS, getToolsByMethodology, TOOLS_RAD35 } from '@/data/mock-data';
 import { getSessionById, updateSession } from '@/services/sessionsService';
 import { useSessionState } from '@/lib/session-state';
+import { buildWorkspacePersistPayload, countToolWork } from '@/lib/sessionWorkspace';
 import type { Session, SessionStage, ToolResult, HawkinsLevel, Tool, ToolIntensity } from '@/types';
 
 // ─── Tool status config ────────────────────────────────────────
@@ -269,8 +270,10 @@ function ReportPreviewModal({
   onGenerate: () => void;
 }) {
   const { hawkins_initial, hawkins_final, reverberation_days, tool_results } = snapshot;
+  const { identified: identifiedCount, activated: activatedCount } = countToolWork(tool_results);
   const identified = tool_results.filter(r => r.status === 'identified' || r.status === 'activated');
   const activated = tool_results.filter(r => r.status === 'activated');
+  const specialtyLabel = session.specialtyName || session.methodologyName;
   const delta = hawkins_initial && hawkins_final ? hawkins_final - hawkins_initial : null;
   const initialLevel = HAWKINS_LEVELS.find(h => h.value === hawkins_initial);
   const finalLevel = HAWKINS_LEVELS.find(h => h.value === hawkins_final);
@@ -286,7 +289,7 @@ function ReportPreviewModal({
           </div>
           <div>
             <h3 className="font-cinzel text-sm font-semibold text-[var(--color-text-primary)]">Pré-visualização do Relatório</h3>
-            <p className="text-[10px] text-[var(--color-text-muted)]">{session.clientName} · {session.methodologyName}</p>
+            <p className="text-[10px] text-[var(--color-text-muted)]">{session.clientName} · {specialtyLabel}</p>
           </div>
           <button onClick={onClose} className="ml-auto p-1.5 rounded-lg hover:bg-[var(--color-surface-2)] text-[var(--color-text-muted)]">
             <X size={14} />
@@ -298,7 +301,7 @@ function ReportPreviewModal({
           <div className="rounded-2xl border border-[var(--color-gold)]/20 bg-[var(--color-gold)]/5 p-5 text-center">
             <p className="text-[10px] font-medium text-[var(--color-gold)] uppercase tracking-widest mb-2">Relatório de Sessão Radiônica</p>
             <h2 className="font-cinzel text-lg font-semibold text-[var(--color-text-primary)] mb-1">{session.clientName}</h2>
-            <p className="text-xs text-[var(--color-text-muted)]">{session.methodologyName}</p>
+            <p className="text-xs text-[var(--color-text-muted)]">{specialtyLabel}</p>
           </div>
 
           {/* Hawkins delta */}
@@ -340,11 +343,11 @@ function ReportPreviewModal({
             <p className="text-[10px] font-semibold text-[var(--color-text-muted)] uppercase tracking-wider mb-3">Gráficos Trabalhados</p>
             <div className="grid grid-cols-2 gap-2 mb-3">
               <div className="rounded-lg bg-sky-400/10 border border-sky-400/20 p-3 text-center">
-                <p className="text-2xl font-bold font-cinzel text-sky-400">{identified.length}</p>
+                <p className="text-2xl font-bold font-cinzel text-sky-400">{identifiedCount}</p>
                 <p className="text-[10px] text-sky-400/70 mt-0.5">Identificados</p>
               </div>
               <div className="rounded-lg bg-emerald-400/10 border border-emerald-400/20 p-3 text-center">
-                <p className="text-2xl font-bold font-cinzel text-emerald-400">{activated.length}</p>
+                <p className="text-2xl font-bold font-cinzel text-emerald-400">{activatedCount}</p>
                 <p className="text-[10px] text-emerald-400/70 mt-0.5">Ativados</p>
               </div>
             </div>
@@ -825,8 +828,8 @@ function DiagnosisStage({ session, toolResults, onToolResultChange }: {
 
   const counts = {
     total: tools.length,
-    identified: toolResults.filter(r => r.status === 'identified').length,
-    activated: toolResults.filter(r => r.status === 'activated').length,
+    identified: countToolWork(toolResults).identified,
+    activated: countToolWork(toolResults).activated,
   };
 
   const selectedResult = selectedTool ? toolResults.find(r => r.toolId === selectedTool.id) : undefined;
@@ -1187,8 +1190,9 @@ function ActivationsStage({ session, toolResults, onToolResultChange }: {
 }
 
 // ─── Stage: Closing ────────────────────────────────────────────
-function ClosingStage({ session, hawkinsFinal, reverbDays, onHawkinsFinalSelect, onReverberationSelect, onOpenReport }: {
+function ClosingStage({ session, hawkinsInitial, hawkinsFinal, reverbDays, onHawkinsFinalSelect, onReverberationSelect, onOpenReport }: {
   session: Session;
+  hawkinsInitial: number | null;
   hawkinsFinal: number | null;
   reverbDays: number | null;
   onHawkinsFinalSelect: (value: number) => void;
@@ -1224,17 +1228,17 @@ function ClosingStage({ session, hawkinsFinal, reverbDays, onHawkinsFinalSelect,
         </div>
       </div>
 
-      {hawkinsFinal && session.hawkinsInitial && (
+      {hawkinsFinal && hawkinsInitial && (
         <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface-1)] p-5">
           <p className="text-[10px] font-semibold text-[var(--color-text-muted)] uppercase tracking-wider mb-4">Evolução Vibracional</p>
           <div className="flex items-center gap-8">
             <div className="text-center">
               <p className="text-[10px] text-[var(--color-text-muted)] mb-1">Inicial</p>
-              <p className="text-3xl font-bold font-cinzel" style={{ color: HAWKINS_LEVELS.find(h => h.value === session.hawkinsInitial)?.color }}>
-                {session.hawkinsInitial}
+              <p className="text-3xl font-bold font-cinzel" style={{ color: HAWKINS_LEVELS.find(h => h.value === hawkinsInitial)?.color }}>
+                {hawkinsInitial}
               </p>
-              <p className="text-xs mt-1 font-medium" style={{ color: HAWKINS_LEVELS.find(h => h.value === session.hawkinsInitial)?.color }}>
-                {HAWKINS_LEVELS.find(h => h.value === session.hawkinsInitial)?.label}
+              <p className="text-xs mt-1 font-medium" style={{ color: HAWKINS_LEVELS.find(h => h.value === hawkinsInitial)?.color }}>
+                {HAWKINS_LEVELS.find(h => h.value === hawkinsInitial)?.label}
               </p>
             </div>
             <div className="text-[var(--color-text-muted)] text-sm">→</div>
@@ -1249,8 +1253,8 @@ function ClosingStage({ session, hawkinsFinal, reverbDays, onHawkinsFinalSelect,
             </div>
             <div className="ml-auto text-center">
               <p className="text-[10px] text-[var(--color-text-muted)] mb-1">Evolução</p>
-              <p className={cn('text-3xl font-bold font-cinzel', hawkinsFinal > session.hawkinsInitial ? 'text-emerald-400' : 'text-red-400')}>
-                {hawkinsFinal > session.hawkinsInitial ? '+' : ''}{hawkinsFinal - session.hawkinsInitial}
+              <p className={cn('text-3xl font-bold font-cinzel', hawkinsFinal > hawkinsInitial ? 'text-emerald-400' : 'text-red-400')}>
+                {hawkinsFinal > hawkinsInitial ? '+' : ''}{hawkinsFinal - hawkinsInitial}
               </p>
             </div>
           </div>
@@ -1369,8 +1373,7 @@ function AssistantPanel({ session, currentStage, toolResults }: { session: Sessi
   };
 
   const guidance = stageGuidance[currentStage] || stageGuidance.preparation;
-  const identifiedCount  = toolResults.filter(r => r.status === 'identified').length;
-  const activatedCount   = toolResults.filter(r => r.status === 'activated').length;
+  const { identified: identifiedCount, activated: activatedCount } = countToolWork(toolResults);
   const hasActivity      = identifiedCount > 0 || activatedCount > 0;
 
   return (
@@ -1466,13 +1469,29 @@ export default function WorkspacePage() {
     }
   }, [session?.id, session?.currentStageCode]);
 
+  const sessionStateSource = useMemo(() => {
+    if (!session) return { id, methodologyId: '' };
+    return {
+      id: session.id,
+      methodologyId: session.methodologyId,
+      hawkinsInitial: session.hawkinsInitial,
+      hawkinsFinal: session.hawkinsFinal,
+      reverberationDays: session.reverberationDays,
+      toolResults: session.toolResults,
+      fieldValues: session.fieldValues,
+      stages: session.stages,
+      updatedAt: session.updatedAt,
+    };
+  }, [session, id]);
+
   // ── Central session state ──────────────────────────────────
-  const sessionState = useSessionState(session ?? { id, methodologyId: '' });
+  const sessionState = useSessionState(sessionStateSource);
   const {
     toolResults,
     hawkinsInitial,
     hawkinsFinal,
     reverbDays,
+    fieldValues,
     setToolResult,
     setHawkinsInitial,
     setHawkinsFinal,
@@ -1482,28 +1501,86 @@ export default function WorkspacePage() {
   } = sessionState;
 
   const stageCompletionMap: Record<string, boolean> = { ...stageCompletion };
+  const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Unified handler — used by both Diagnosis and Activations
-  const handleToolResultChange = useCallback((toolId: string, patch: Partial<Omit<ToolResult, 'toolId'>>) => {
-    setToolResult(toolId, patch);
-  }, [setToolResult]);
-
-  const handleSave = async () => {
+  const persistWorkspace = useCallback(async (opts?: { forceCompleted?: boolean }) => {
     if (!session) return;
-    await updateSession(id, {
+    const payload = buildWorkspacePersistPayload(session, {
+      toolResults,
+      fieldValues,
+      hawkinsInitial,
+      hawkinsFinal,
+      reverbDays,
+      currentStageCode: currentStage,
+      stageCompletion,
+      forceCompleted: opts?.forceCompleted,
+    });
+
+    const updated = await updateSession(id, {
+      toolResults: payload.toolResults,
+      fieldValues: payload.fieldValues,
       hawkinsInitial: hawkinsInitial ?? undefined,
       hawkinsFinal: hawkinsFinal ?? undefined,
       reverberationDays: reverbDays ?? undefined,
       currentStageCode: currentStage,
-      status: session.status === 'draft' ? 'in_progress' : session.status,
+      status: payload.status,
+      completedAt: payload.completedAt,
     });
-    await queryClient.invalidateQueries({ queryKey: ['session', id] });
+    if (updated) {
+      queryClient.setQueryData(['session', id], updated);
+    }
     await queryClient.invalidateQueries({ queryKey: ['sessions'] });
+  }, [
+    session, id, toolResults, fieldValues, hawkinsInitial, hawkinsFinal, reverbDays,
+    currentStage, stageCompletion, queryClient,
+  ]);
+
+  const schedulePersist = useCallback((opts?: { forceCompleted?: boolean }) => {
+    if (persistTimerRef.current) clearTimeout(persistTimerRef.current);
+    persistTimerRef.current = setTimeout(() => {
+      void persistWorkspace(opts);
+    }, 400);
+  }, [persistWorkspace]);
+
+  const selectStage = useCallback((code: string) => {
+    setCurrentStage(code);
+    schedulePersist();
+  }, [schedulePersist]);
+
+  const handleHawkinsInitial = useCallback((v: number | null) => {
+    setHawkinsInitial(v);
+    schedulePersist();
+  }, [setHawkinsInitial, schedulePersist]);
+
+  const handleHawkinsFinal = useCallback((v: number | null) => {
+    setHawkinsFinal(v);
+    schedulePersist();
+  }, [setHawkinsFinal, schedulePersist]);
+
+  const handleReverbDays = useCallback((v: number | null) => {
+    setReverbDays(v);
+    schedulePersist();
+  }, [setReverbDays, schedulePersist]);
+
+  // Unified handler — used by both Diagnosis and Activations
+  const handleToolResultChange = useCallback((toolId: string, patch: Partial<Omit<ToolResult, 'toolId'>>) => {
+    setToolResult(toolId, patch);
+    schedulePersist();
+  }, [setToolResult, schedulePersist]);
+
+  const handleSave = async () => {
+    if (!session) return;
+    await persistWorkspace();
     const now = new Date().toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' });
     setSavedAt(now);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
+
+  const handleOpenReportPreview = useCallback(async () => {
+    await persistWorkspace();
+    setShowReportPreview(true);
+  }, [persistWorkspace]);
 
   if (isLoading) {
     return (
@@ -1565,7 +1642,7 @@ export default function WorkspacePage() {
           {stages.map(s => (
             <button
               key={s.code}
-              onClick={() => setCurrentStage(s.code)}
+              onClick={() => selectStage(s.code)}
               className={cn(
                 'flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium transition-all',
                 s.code === currentStage
@@ -1583,11 +1660,11 @@ export default function WorkspacePage() {
         </div>
 
         <div className="ml-auto flex items-center gap-1.5">
-          <button onClick={() => setCurrentStage(stages[Math.max(0, currentIdx - 1)].code)} disabled={!canGoPrev} className="p-1.5 rounded-lg hover:bg-[var(--color-surface-2)] text-[var(--color-text-muted)] disabled:opacity-30">
+          <button onClick={() => selectStage(stages[Math.max(0, currentIdx - 1)].code)} disabled={!canGoPrev} className="p-1.5 rounded-lg hover:bg-[var(--color-surface-2)] text-[var(--color-text-muted)] disabled:opacity-30">
             <ChevronLeft size={14} />
           </button>
           <span className="text-xs text-[var(--color-text-secondary)] font-medium hidden md:block w-24 text-center">{activeStage.label}</span>
-          <button onClick={() => setCurrentStage(stages[Math.min(stages.length - 1, currentIdx + 1)].code)} disabled={!canGoNext} className="p-1.5 rounded-lg hover:bg-[var(--color-surface-2)] text-[var(--color-text-muted)] disabled:opacity-30">
+          <button onClick={() => selectStage(stages[Math.min(stages.length - 1, currentIdx + 1)].code)} disabled={!canGoNext} className="p-1.5 rounded-lg hover:bg-[var(--color-surface-2)] text-[var(--color-text-muted)] disabled:opacity-30">
             <ChevronRight size={14} />
           </button>
 
@@ -1605,7 +1682,7 @@ export default function WorkspacePage() {
           </button>
 
           <button
-            onClick={() => setShowReportPreview(true)}
+            onClick={() => void handleOpenReportPreview()}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-[var(--color-gold)]/35 bg-[var(--color-gold)]/8 text-[var(--color-gold)] hover:bg-[var(--color-gold)]/15 transition-all"
           >
             <FileText size={11} />
@@ -1620,13 +1697,13 @@ export default function WorkspacePage() {
           stages={stages}
           currentStage={currentStage}
           stageCompletion={stageCompletionMap}
-          onSelectStage={setCurrentStage}
+          onSelectStage={selectStage}
         />
 
         <div className="flex-1 flex flex-col overflow-hidden">
           <div className="flex-1 overflow-y-auto p-5">
             {currentStage === 'preparation' && (
-              <PreparationStage session={session} hawkinsInitial={hawkinsInitial} onHawkinsSelect={setHawkinsInitial} />
+              <PreparationStage session={session} hawkinsInitial={hawkinsInitial} onHawkinsSelect={handleHawkinsInitial} />
             )}
             {currentStage === 'connection' && (
               <ConnectionStage session={session} />
@@ -1640,11 +1717,12 @@ export default function WorkspacePage() {
             {currentStage === 'closing' && (
               <ClosingStage
                 session={session}
+                hawkinsInitial={hawkinsInitial}
                 hawkinsFinal={hawkinsFinal}
                 reverbDays={reverbDays}
-                onHawkinsFinalSelect={setHawkinsFinal}
-                onReverberationSelect={setReverbDays}
-                onOpenReport={() => setShowReportPreview(true)}
+                onHawkinsFinalSelect={handleHawkinsFinal}
+                onReverberationSelect={handleReverbDays}
+                onOpenReport={() => void handleOpenReportPreview()}
               />
             )}
           </div>
@@ -1660,7 +1738,11 @@ export default function WorkspacePage() {
           session={session}
           snapshot={sessionSnapshot}
           onClose={() => setShowReportPreview(false)}
-          onGenerate={() => { setShowReportPreview(false); navigate('/reports'); }}
+          onGenerate={async () => {
+            await persistWorkspace({ forceCompleted: true });
+            setShowReportPreview(false);
+            navigate('/reports');
+          }}
         />
       )}
     </div>

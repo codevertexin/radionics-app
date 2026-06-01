@@ -328,6 +328,9 @@ export interface Session {
   currentStageCode?: string;
   currentStepCode?: string;
   stages: SessionStage[];
+  /** Estado vivo do workspace (diagnóstico / ativações). */
+  toolResults?: ToolResult[];
+  fieldValues?: Record<string, FieldValue>;
   createdAt: string;
   updatedAt: string;
   scheduledAt?: string;
