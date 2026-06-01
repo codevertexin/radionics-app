@@ -14,6 +14,7 @@ const SENSITIVE_QUERY_PREFIXES = [
   'approved-specialties',
   'profile',
   'certifications',
+  'radionics-admin',
 ] as const;
 
 /** Wipe client-side user data after logout (cache + in-memory mock stores). */

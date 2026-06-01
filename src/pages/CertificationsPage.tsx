@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   CheckCircle2, Clock, Lock, Award, ChevronRight,
@@ -7,6 +7,7 @@ import {
   Sparkles, Star, Loader2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { resolveSpecialtySlug } from '@/lib/slug';
 import {
   getSpecialties,
   getMySpecialtyRequests,
@@ -19,8 +20,10 @@ import {
   getAllCertifications,
   submitCertification,
   uploadCertDocument,
+  resubmitCertification,
   reviewCertification,
 } from '@/services/certificationsService';
+import { isCurrentUserRadionicsAdmin } from '@/services/adminService';
 import type { Specialty, SpecialtyRequest, Certification, CertDocument, CertStatus, SpecialtyRequestStatus } from '@/types';
 
 // ─── Status configs ───────────────────────────────────────────
@@ -105,7 +108,7 @@ function fmtSize(bytes: number): string {
 }
 
 // ─── Doc row ──────────────────────────────────────────────────
-function DocRow({ doc }: { doc: CertDocument }) {
+function DocRow({ doc, onRemove }: { doc: CertDocument; onRemove?: () => void }) {
   const isImg = doc.fileType === 'jpg' || doc.fileType === 'jpeg' || doc.fileType === 'png';
   return (
     <div className="flex items-center gap-2.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-1)] px-3 py-2">
@@ -117,6 +120,16 @@ function DocRow({ doc }: { doc: CertDocument }) {
       <span className="text-[9px] font-mono uppercase text-[var(--color-text-muted)] shrink-0 px-1.5 py-0.5 rounded bg-[var(--color-surface-2)]">
         {doc.fileType}
       </span>
+      {onRemove && (
+        <button
+          type="button"
+          onClick={onRemove}
+          className="text-[var(--color-text-muted)] hover:text-red-400 transition-colors shrink-0"
+          title="Remover documento"
+        >
+          <Trash2 size={12} />
+        </button>
+      )}
     </div>
   );
 }
@@ -129,30 +142,40 @@ interface PendingFile {
 
 function SubmitCertModal({
   specialty,
+  certification,
   onClose,
   onSubmit,
 }: {
   specialty: Specialty;
+  certification?: Certification;
   onClose: () => void;
   onSubmit: (data: {
     specialtyId: string;
+    certificationId?: string;
     years: number;
     files: File[];
+    removeDocumentIds: string[];
     institution: string;
     trainingDate: string;
     notes: string;
   }) => void;
 }) {
-  const [years, setYears] = useState('');
-  const [institution, setInstitution] = useState('');
-  const [trainingDate, setTrainingDate] = useState('');
-  const [notes, setNotes] = useState('');
+  const isResubmit = Boolean(certification);
+  const [years, setYears] = useState(
+    certification?.yearsOfExperience !== undefined ? String(certification.yearsOfExperience) : '',
+  );
+  const [institution, setInstitution] = useState(certification?.trainingInstitution ?? '');
+  const [trainingDate, setTrainingDate] = useState(certification?.trainingCompletedDate ?? '');
+  const [notes, setNotes] = useState(certification?.notes ?? '');
+  const [removedDocIds, setRemovedDocIds] = useState<string[]>([]);
   const [files, setFiles] = useState<PendingFile[]>([]);
   const [fileError, setFileError] = useState('');
   const [dragOver, setDragOver] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const keptExistingDocs = (certification?.documents ?? []).filter(d => !removedDocIds.includes(d.id));
 
   const acceptFile = useCallback((file: File) => {
     if (!ALLOWED_MIME.includes(file.type)) {
@@ -178,8 +201,12 @@ function SubmitCertModal({
 
   const validate = () => {
     const errs: Record<string, string> = {};
-    if (!years || isNaN(Number(years)) || Number(years) < 0) errs.years = 'Insira anos de experiência válidos';
-    if (files.length === 0) errs.files = 'Adicione pelo menos um documento';
+    if (!years || isNaN(Number(years)) || Number(years) < 1) {
+      errs.years = 'Insira anos de experiência válidos (mínimo 1)';
+    }
+    if (keptExistingDocs.length + files.length === 0) {
+      errs.files = 'Mantenha ou adicione pelo menos um documento';
+    }
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -188,8 +215,10 @@ function SubmitCertModal({
     if (!validate()) return;
     onSubmit({
       specialtyId: specialty.id,
+      certificationId: certification?.id,
       years: Number(years),
       files: files.map(f => f.file),
+      removeDocumentIds: removedDocIds,
       institution,
       trainingDate,
       notes,
@@ -204,11 +233,23 @@ function SubmitCertModal({
           <div className="w-16 h-16 rounded-full bg-amber-900/30 border border-amber-700/40 flex items-center justify-center mx-auto mb-4">
             <Clock size={28} className="text-amber-400" />
           </div>
-          <h3 className="font-cinzel text-lg font-semibold text-[var(--color-text-primary)] mb-2">Pedido enviado</h3>
+          <h3 className="font-cinzel text-lg font-semibold text-[var(--color-text-primary)] mb-2">
+            {isResubmit ? 'Pedido reenviado' : 'Pedido enviado'}
+          </h3>
           <p className="text-sm text-[var(--color-text-secondary)] leading-relaxed mb-6">
-            O seu pedido de certificação em{' '}
-            <span className="text-[var(--color-text-primary)] font-medium">{specialty.name}</span>{' '}
-            foi submetido. Receberá uma notificação quando for aprovado.
+            {isResubmit ? (
+              <>
+                A certificação em{' '}
+                <span className="text-[var(--color-text-primary)] font-medium">{specialty.name}</span>{' '}
+                foi corrigida e reenviada para análise.
+              </>
+            ) : (
+              <>
+                O seu pedido de certificação em{' '}
+                <span className="text-[var(--color-text-primary)] font-medium">{specialty.name}</span>{' '}
+                foi submetido. Receberá uma notificação quando for aprovado.
+              </>
+            )}
           </p>
           <div className="rounded-xl border border-amber-700/30 bg-amber-900/10 p-4 mb-6 text-left space-y-1.5">
             <p className="text-xs font-medium text-amber-300">Próximos passos</p>
@@ -230,7 +271,9 @@ function SubmitCertModal({
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--color-border)] shrink-0">
           <div>
-            <h3 className="font-cinzel text-base font-semibold text-[var(--color-text-primary)]">Submeter Certificação</h3>
+            <h3 className="font-cinzel text-base font-semibold text-[var(--color-text-primary)]">
+              {isResubmit ? 'Corrigir e resubmeter' : 'Submeter Certificação'}
+            </h3>
             <p className="text-xs text-[var(--color-text-muted)] mt-0.5">{specialty.name}</p>
           </div>
           <button onClick={onClose} className="w-7 h-7 rounded-full hover:bg-[var(--color-surface-2)] text-[var(--color-text-muted)] flex items-center justify-center transition-colors">
@@ -240,10 +283,19 @@ function SubmitCertModal({
 
         <div className="p-5 space-y-4 overflow-y-auto">
           {/* Info banner */}
+          {isResubmit && certification?.adminNotes && (
+            <div className="rounded-xl border border-red-700/40 bg-red-900/15 p-3">
+              <p className="text-[10px] font-medium text-red-300 uppercase tracking-wider mb-1">Motivo da rejeição</p>
+              <p className="text-xs text-[var(--color-text-secondary)] leading-relaxed">{certification.adminNotes}</p>
+            </div>
+          )}
+
           <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-1)] p-3 flex gap-2.5">
             <Info size={14} className="text-[var(--color-text-muted)] mt-0.5 shrink-0" />
             <p className="text-xs text-[var(--color-text-secondary)] leading-relaxed">
-              Submeta a sua documentação de certificação. Pode anexar múltiplos documentos (diploma, certificado de formação, etc.).
+              {isResubmit
+                ? 'Corrija os dados abaixo, remova ou adicione documentos e reenvie para análise. É obrigatório manter pelo menos um documento.'
+                : 'Submeta a sua documentação de certificação. Pode anexar múltiplos documentos (diploma, certificado de formação, etc.).'}
             </p>
           </div>
 
@@ -296,7 +348,20 @@ function SubmitCertModal({
               Documentos <span className="text-red-400">*</span>
             </label>
 
-            {/* Existing files */}
+            {keptExistingDocs.length > 0 && (
+              <div className="space-y-1.5 mb-2">
+                <p className="text-[10px] text-[var(--color-text-muted)]">Documentos actuais</p>
+                {keptExistingDocs.map(doc => (
+                  <DocRow
+                    key={doc.id}
+                    doc={doc}
+                    onRemove={() => setRemovedDocIds(prev => [...prev, doc.id])}
+                  />
+                ))}
+              </div>
+            )}
+
+            {/* New files */}
             {files.length > 0 && (
               <div className="space-y-1.5 mb-2">
                 {files.map(({ id, file }) => (
@@ -376,7 +441,7 @@ function SubmitCertModal({
             className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-[var(--color-gold)] text-[var(--color-void)] text-sm font-semibold hover:opacity-90 transition-opacity"
           >
             <Send size={13} />
-            Submeter pedido
+            {isResubmit ? 'Reenviar para análise' : 'Submeter pedido'}
           </button>
         </div>
       </div>
@@ -574,8 +639,10 @@ function CertDetailPanel({
                 Expirou em {new Date(certification.expiresAt).toLocaleDateString('pt-PT', { day: '2-digit', month: 'long', year: 'numeric' })}
               </p>
             )}
-            {status === 'rejected' && certification?.adminNotes && (
-              <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5">{certification.adminNotes}</p>
+            {status === 'rejected' && certification?.submittedAt && (
+              <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5">
+                Última submissão: {new Date(certification.submittedAt).toLocaleDateString('pt-PT', { day: '2-digit', month: 'long', year: 'numeric' })}
+              </p>
             )}
           </div>
         </div>
@@ -593,6 +660,14 @@ function CertDetailPanel({
               <div className="flex items-center justify-between text-xs">
                 <span className="text-[var(--color-text-muted)]">Instituição</span>
                 <span className="text-[var(--color-text-secondary)] text-right ml-4 leading-tight text-[11px]">{certification.trainingInstitution}</span>
+              </div>
+            )}
+            {certification.trainingCompletedDate && (
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-[var(--color-text-muted)]">Conclusão formação</span>
+                <span className="text-[var(--color-text-secondary)] text-[11px]">
+                  {new Date(certification.trainingCompletedDate).toLocaleDateString('pt-PT')}
+                </span>
               </div>
             )}
             {certification.certificateNumber && (
@@ -633,9 +708,18 @@ function CertDetailPanel({
           </div>
         )}
 
+        {/* Rejection reason */}
+        {status === 'rejected' && certification?.adminNotes && (
+          <div className="rounded-lg border border-red-700/40 bg-red-900/15 p-2.5">
+            <p className="text-[10px] font-medium text-red-300 mb-1">Motivo da rejeição</p>
+            <p className="text-[10px] text-[var(--color-text-muted)] leading-relaxed">{certification.adminNotes}</p>
+          </div>
+        )}
+
         {/* Notes */}
         {certification?.notes && (
           <div className="rounded-lg bg-[var(--color-surface-1)] border border-[var(--color-border)] p-2.5">
+            <p className="text-[10px] font-medium text-[var(--color-text-muted)] mb-1">Notas</p>
             <p className="text-[10px] text-[var(--color-text-muted)] leading-relaxed">{certification.notes}</p>
           </div>
         )}
@@ -650,22 +734,18 @@ function CertDetailPanel({
             Solicitar certificação
           </button>
         )}
-        {status === 'rejected' && (
+        {(status === 'rejected' || status === 'expired') && (
           <button
             onClick={onSubmitCert}
-            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-amber-700/40 bg-amber-900/10 text-sm font-medium text-amber-400 hover:bg-amber-900/20 transition-colors"
+            className={cn(
+              'w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border text-sm font-medium transition-colors',
+              status === 'rejected'
+                ? 'border-amber-700/40 bg-amber-900/10 text-amber-400 hover:bg-amber-900/20'
+                : 'border-orange-700/40 bg-orange-900/10 text-orange-400 hover:bg-orange-900/20',
+            )}
           >
             <RefreshCw size={13} />
-            Resubmeter pedido
-          </button>
-        )}
-        {status === 'expired' && (
-          <button
-            onClick={onSubmitCert}
-            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-orange-700/40 bg-orange-900/10 text-sm font-medium text-orange-400 hover:bg-orange-900/20 transition-colors"
-          >
-            <RefreshCw size={13} />
-            Renovar certificação
+            {status === 'rejected' ? 'Corrigir e resubmeter' : 'Corrigir e renovar'}
           </button>
         )}
         {status === 'pending' && (
@@ -1006,8 +1086,32 @@ export default function CertificationsPage() {
   const qc = useQueryClient();
   const [activeTab, setActiveTab] = useState<'mine' | 'admin'>('mine');
   const [selected, setSelected] = useState<Specialty | null>(null);
-  const [certModalTarget, setCertModalTarget] = useState<Specialty | null>(null);
+  const [certModal, setCertModal] = useState<{
+    specialty: Specialty;
+    certification?: Certification;
+  } | null>(null);
+
+  const openCertModal = (specialty: Specialty) => {
+    const cert = myCerts.find(c => c.specialtyId === specialty.id);
+    const isResubmit = cert?.status === 'rejected' || cert?.status === 'expired';
+    setCertModal({
+      specialty,
+      certification: isResubmit ? cert : undefined,
+    });
+  };
   const [showProposeModal, setShowProposeModal] = useState(false);
+
+  const { data: isAdmin = false, isLoading: loadingAdminRole } = useQuery({
+    queryKey: ['radionics-admin'],
+    queryFn: isCurrentUserRadionicsAdmin,
+    staleTime: 60_000,
+  });
+
+  useEffect(() => {
+    if (!loadingAdminRole && !isAdmin && activeTab === 'admin') {
+      setActiveTab('mine');
+    }
+  }, [isAdmin, activeTab, loadingAdminRole]);
 
   // ── Queries ──
   const { data: specialties = [], isLoading: loadingSpecialties } = useQuery({
@@ -1023,7 +1127,7 @@ export default function CertificationsPage() {
   const { data: allCerts = [], isLoading: loadingAllCerts } = useQuery({
     queryKey: ['all-certifications'],
     queryFn: getAllCertifications,
-    enabled: activeTab === 'admin',
+    enabled: isAdmin && activeTab === 'admin',
   });
 
   const { data: mySReqs = [] } = useQuery({
@@ -1034,7 +1138,7 @@ export default function CertificationsPage() {
   const { data: allSReqs = [], isLoading: loadingAllSReqs } = useQuery({
     queryKey: ['all-specialty-requests'],
     queryFn: getAllSpecialtyRequests,
-    enabled: activeTab === 'admin',
+    enabled: isAdmin && activeTab === 'admin',
   });
 
   // ── Helpers ──
@@ -1050,27 +1154,40 @@ export default function CertificationsPage() {
     return !c || c.status === 'not_certified';
   });
   const specialtyRequests = mySReqs.filter(r => r.status === 'pending_review');
-  // Admin counts use all-data queries when on admin tab
-  const pendingAdminCerts = (activeTab === 'admin' ? allCerts : myCerts).filter(c => c.status === 'pending');
-  const pendingAdminSReqs = (activeTab === 'admin' ? allSReqs : []).filter(r => r.status === 'pending_review');
-  const pendingAdminCount = pending.length + specialtyRequests.length;
+  const pendingAdminCerts = allCerts.filter(c => c.status === 'pending');
+  const pendingAdminSReqs = allSReqs.filter(r => r.status === 'pending_review');
+  const adminQueueCount = pendingAdminCerts.length + pendingAdminSReqs.length;
 
   // ── Mutations ──
   const submitCertMutation = useMutation({
     mutationFn: async (data: {
-      specialtyId: string; years: number; files: File[];
-      institution: string; trainingDate: string; notes: string;
+      specialtyId: string;
+      certificationId?: string;
+      years: number;
+      files: File[];
+      removeDocumentIds: string[];
+      institution: string;
+      trainingDate: string;
+      notes: string;
     }) => {
-      // 1. Create certification record
-      const cert = await submitCertification({
-        specialtyId: data.specialtyId,
+      const payload = {
         yearsOfExperience: data.years,
-        experienceDescription: undefined,
         trainingInstitution: data.institution || undefined,
         trainingCompletedDate: data.trainingDate || undefined,
         notes: data.notes || undefined,
+      };
+
+      if (data.certificationId) {
+        return resubmitCertification(data.certificationId, payload, {
+          removeDocumentIds: data.removeDocumentIds,
+          newFiles: data.files,
+        });
+      }
+
+      const cert = await submitCertification({
+        specialtyId: data.specialtyId,
+        ...payload,
       });
-      // 2. Upload all files
       await Promise.all(data.files.map(f => uploadCertDocument(cert.id, f)));
       return cert;
     },
@@ -1085,7 +1202,7 @@ export default function CertificationsPage() {
     mutationFn: (data: { name: string; description: string; category: string; notes: string }) =>
       proposeSpecialty({
         proposedName: data.name,
-        proposedSlug: data.name.toLowerCase().replace(/\s+/g, '-'),
+        proposedSlug: resolveSpecialtySlug(data.name),
         description: data.description || undefined,
         category: data.category || undefined,
         notes: data.notes || undefined,
@@ -1135,8 +1252,14 @@ export default function CertificationsPage() {
 
   // ── Handlers ──
   const handleSubmitCert = (data: {
-    specialtyId: string; years: number; files: File[];
-    institution: string; trainingDate: string; notes: string;
+    specialtyId: string;
+    certificationId?: string;
+    years: number;
+    files: File[];
+    removeDocumentIds: string[];
+    institution: string;
+    trainingDate: string;
+    notes: string;
   }) => {
     submitCertMutation.mutate(data);
   };
@@ -1215,22 +1338,24 @@ export default function CertificationsPage() {
           >
             As minhas especialidades
           </button>
-          <button
-            onClick={() => setActiveTab('admin')}
-            className={cn(
-              'flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all',
-              activeTab === 'admin'
-                ? 'bg-[var(--color-surface-2)] text-[var(--color-text-primary)]'
-                : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]',
-            )}
-          >
-            Admin
-            {pendingAdminCount > 0 && (
-              <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30 text-[10px] font-bold flex items-center justify-center">
-                {pendingAdminCount}
-              </span>
-            )}
-          </button>
+          {isAdmin && (
+            <button
+              onClick={() => setActiveTab('admin')}
+              className={cn(
+                'flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all',
+                activeTab === 'admin'
+                  ? 'bg-[var(--color-surface-2)] text-[var(--color-text-primary)]'
+                  : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]',
+              )}
+            >
+              Admin
+              {adminQueueCount > 0 && (
+                <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30 text-[10px] font-bold flex items-center justify-center">
+                  {adminQueueCount}
+                </span>
+              )}
+            </button>
+          )}
         </div>
       </div>
 
@@ -1256,7 +1381,7 @@ export default function CertificationsPage() {
                       certification={getCertification(s.id)}
                       isSelected={selected?.id === s.id}
                       onSelect={() => setSelected(prev => prev?.id === s.id ? null : s)}
-                      onSubmitCert={() => setCertModalTarget(s)}
+                      onSubmitCert={() => openCertModal(s)}
                     />
                   ))}
                 </div>
@@ -1279,7 +1404,7 @@ export default function CertificationsPage() {
                       certification={getCertification(s.id)}
                       isSelected={selected?.id === s.id}
                       onSelect={() => setSelected(prev => prev?.id === s.id ? null : s)}
-                      onSubmitCert={() => setCertModalTarget(s)}
+                      onSubmitCert={() => openCertModal(s)}
                     />
                   ))}
                 </div>
@@ -1299,7 +1424,7 @@ export default function CertificationsPage() {
                     <SpecialtyRow key={s.id} specialty={s} certification={getCertification(s.id)}
                       isSelected={selected?.id === s.id}
                       onSelect={() => setSelected(prev => prev?.id === s.id ? null : s)}
-                      onSubmitCert={() => setCertModalTarget(s)} />
+                      onSubmitCert={() => openCertModal(s)} />
                   ))}
                 </div>
               </section>
@@ -1318,7 +1443,7 @@ export default function CertificationsPage() {
                     <SpecialtyRow key={s.id} specialty={s} certification={getCertification(s.id)}
                       isSelected={selected?.id === s.id}
                       onSelect={() => setSelected(prev => prev?.id === s.id ? null : s)}
-                      onSubmitCert={() => setCertModalTarget(s)} />
+                      onSubmitCert={() => openCertModal(s)} />
                   ))}
                 </div>
               </section>
@@ -1337,7 +1462,7 @@ export default function CertificationsPage() {
                     <SpecialtyRow key={s.id} specialty={s} certification={getCertification(s.id)}
                       isSelected={selected?.id === s.id}
                       onSelect={() => setSelected(prev => prev?.id === s.id ? null : s)}
-                      onSubmitCert={() => setCertModalTarget(s)} />
+                      onSubmitCert={() => openCertModal(s)} />
                   ))}
                 </div>
               </section>
@@ -1385,9 +1510,9 @@ export default function CertificationsPage() {
               <CertDetailPanel
                 specialty={selected}
                 certification={getCertification(selected.id)}
-                onAddDoc={() => setCertModalTarget(selected)}
+                onAddDoc={() => openCertModal(selected)}
                 onClose={() => setSelected(null)}
-                onSubmitCert={() => setCertModalTarget(selected)}
+                onSubmitCert={() => openCertModal(selected)}
               />
             </div>
           )}
@@ -1395,7 +1520,7 @@ export default function CertificationsPage() {
       )}
 
       {/* ── Tab: Admin ── */}
-      {activeTab === 'admin' && (
+      {isAdmin && activeTab === 'admin' && (
         <div className="p-6 space-y-8">
           {/* Info */}
           <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-1)] p-4 flex items-start gap-3">
@@ -1467,10 +1592,11 @@ export default function CertificationsPage() {
       )}
 
       {/* Submit cert modal */}
-      {certModalTarget && (
+      {certModal && (
         <SubmitCertModal
-          specialty={certModalTarget}
-          onClose={() => setCertModalTarget(null)}
+          specialty={certModal.specialty}
+          certification={certModal.certification}
+          onClose={() => setCertModal(null)}
           onSubmit={data => handleSubmitCert(data)}
         />
       )}

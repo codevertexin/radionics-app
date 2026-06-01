@@ -71,6 +71,31 @@ async function mapSingleCert(row: CertificationRow): Promise<Certification> {
   return cert;
 }
 
+const EDITABLE_CERT_STATUSES = ['not_certified', 'pending', 'rejected', 'expired'] as const;
+const RESUBMIT_FROM_STATUSES = ['rejected', 'expired'] as const;
+
+async function assertOwnEditableCert(
+  certId: string,
+  userId: string,
+  allowedStatuses: readonly string[] = EDITABLE_CERT_STATUSES,
+) {
+  const client = requireSupabaseClient();
+  const { data: cert, error } = await client
+    .from('therapist_specialty_certifications')
+    .select('id, therapist_id, status')
+    .eq('id', certId)
+    .single();
+
+  if (error) wrapSupabaseError('assertOwnEditableCert', error);
+  if (cert.therapist_id !== userId) {
+    throw new Error('[Supabase] Cannot modify another therapist certification');
+  }
+  if (!allowedStatuses.includes(cert.status)) {
+    throw new Error(`[Supabase] Certification cannot be edited in status: ${cert.status}`);
+  }
+  return cert;
+}
+
 export async function listCertifications(): Promise<Certification[]> {
   const client = requireSupabaseClient();
   const userId = await requireAuthUserId(client);
@@ -245,6 +270,127 @@ export async function addCertificationDocuments(
   files: File[],
 ): Promise<CertDocument[]> {
   return uploadCertificationDocuments(certId, files);
+}
+
+export async function updateCertification(
+  certId: string,
+  input: {
+    yearsOfExperience: number;
+    experienceDescription?: string;
+    trainingInstitution?: string;
+    trainingCompletedDate?: string;
+    notes?: string;
+  },
+): Promise<Certification> {
+  const client = requireSupabaseClient();
+  const userId = await requireAuthUserId(client);
+  await assertOwnEditableCert(certId, userId);
+
+  const { data, error } = await client
+    .from('therapist_specialty_certifications')
+    .update({
+      years_of_experience: input.yearsOfExperience,
+      experience_description: input.experienceDescription ?? null,
+      training_institution: input.trainingInstitution ?? null,
+      training_completed_date: input.trainingCompletedDate ?? null,
+      notes: input.notes ?? null,
+    })
+    .eq('id', certId)
+    .select('*')
+    .single();
+
+  if (error) wrapSupabaseError('updateCertification', error);
+  return mapSingleCert(data as CertificationRow);
+}
+
+export async function removeCertificationDocument(documentId: string): Promise<void> {
+  const client = requireSupabaseClient();
+  const userId = await requireAuthUserId(client);
+
+  const { data: doc, error: fetchError } = await client
+    .from('therapist_specialty_documents')
+    .select('id, certification_id, storage_path')
+    .eq('id', documentId)
+    .single();
+
+  if (fetchError) wrapSupabaseError('removeCertificationDocument.fetch', fetchError);
+
+  await assertOwnEditableCert(doc.certification_id, userId);
+
+  if (doc.storage_path) {
+    const { error: storageError } = await client.storage.from(BUCKET).remove([doc.storage_path]);
+    if (storageError) {
+      console.warn('[Supabase] removeCertificationDocument.storage', storageError.message);
+    }
+  }
+
+  const { error: deleteError } = await client
+    .from('therapist_specialty_documents')
+    .delete()
+    .eq('id', documentId);
+
+  if (deleteError) wrapSupabaseError('removeCertificationDocument.delete', deleteError);
+}
+
+export async function resubmitCertification(
+  certId: string,
+  input: {
+    yearsOfExperience: number;
+    experienceDescription?: string;
+    trainingInstitution?: string;
+    trainingCompletedDate?: string;
+    notes?: string;
+  },
+  options: {
+    removeDocumentIds?: string[];
+    newFiles?: File[];
+  } = {},
+): Promise<Certification> {
+  const client = requireSupabaseClient();
+  const userId = await requireAuthUserId(client);
+
+  await assertOwnEditableCert(certId, userId, RESUBMIT_FROM_STATUSES);
+
+  const docs = await listCertificationDocuments(certId);
+  const removeIds = new Set(options.removeDocumentIds ?? []);
+  const remainingAfterRemove = docs.filter(d => !removeIds.has(d.id)).length;
+  const newCount = options.newFiles?.length ?? 0;
+
+  if (remainingAfterRemove + newCount < 1) {
+    throw new Error('É necessário pelo menos um documento para resubmeter a certificação');
+  }
+
+  for (const docId of removeIds) {
+    await removeCertificationDocument(docId);
+  }
+
+  const now = new Date().toISOString();
+  const { data, error } = await client
+    .from('therapist_specialty_certifications')
+    .update({
+      status: 'pending',
+      years_of_experience: input.yearsOfExperience,
+      experience_description: input.experienceDescription ?? null,
+      training_institution: input.trainingInstitution ?? null,
+      training_completed_date: input.trainingCompletedDate ?? null,
+      notes: input.notes ?? null,
+      admin_notes: null,
+      reviewed_at: null,
+      reviewed_by: null,
+      submitted_at: now,
+      expires_at: null,
+    })
+    .eq('id', certId)
+    .select('*')
+    .single();
+
+  if (error) wrapSupabaseError('resubmitCertification', error);
+
+  if (options.newFiles?.length) {
+    await uploadCertificationDocuments(certId, options.newFiles);
+  }
+
+  return mapSingleCert(data as CertificationRow);
 }
 
 export async function adminReviewCertification(

@@ -128,7 +128,17 @@ interface RadionicsAuthContext {
 
 Implementação futura substitui `AuthProvider` dev; interface pública (`useAuth`) pode manter-se similar para minimizar churn na UI.
 
-### 3.3 Admin
+### 3.3 Admin e permissões (UI vs servidor)
+
+**Nunca confiar apenas na UI** para esconder acções admin. A aba Admin em Especialidades/Certificações usa `isCurrentUserRadionicsAdmin()` apenas para UX; `adminList*` e `adminReview*` continuam protegidos por **RLS** — utilizadores não-admin recebem erro ou listas vazias.
+
+| Ambiente | Fonte de verdade admin |
+|----------|------------------------|
+| **Produção (futuro)** | HUB / Auth Core — claims (`radionics_role`, etc.) |
+| **Dev Supabase** | `public.is_radionics_admin()` (RPC) — allowlist `radionics_admin_allowlist` + JWT placeholder |
+| **Mock** | `adminService` retorna `true` por default para testes locais |
+
+Implementação actual: `src/services/adminService.ts` → `isCurrentUserRadionicsAdmin()`, `getCurrentUserRadionicsRole()`.
 
 Substituir bootstrap manual (`radionics_admin_allowlist`) por claim canónica do Auth Core:
 

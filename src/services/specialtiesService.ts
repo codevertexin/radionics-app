@@ -4,6 +4,7 @@
 
 import { SPECIALTIES, SPECIALTY_REQUESTS } from '@/data/mock-data';
 import { isSupabaseMode } from '@/lib/dataMode';
+import { resolveSpecialtySlug } from '@/lib/slug';
 import { getMyCertifications } from '@/services/certificationsService';
 import * as supabaseSpecialties from '@/services/supabase/specialtiesSupabase';
 import type { Specialty, SpecialtyRequest } from '@/types';
@@ -43,7 +44,7 @@ async function mockProposeSpecialty(input: {
     id: `sreq-${Date.now()}`,
     therapistId: 'therapist-001',
     proposedName: input.proposedName,
-    proposedSlug: input.proposedSlug,
+    proposedSlug: resolveSpecialtySlug(input.proposedName, input.proposedSlug),
     description: input.description,
     category: input.category,
     notes: input.notes,
@@ -74,7 +75,7 @@ async function mockReviewSpecialtyRequest(
   requestsStore[idx] = updated;
 
   if (status === 'approved') {
-    const slug = updated.proposedSlug ?? updated.proposedName.toLowerCase().replace(/\s+/g, '-');
+    const slug = resolveSpecialtySlug(updated.proposedName, updated.proposedSlug);
     specialtiesStore = [
       ...specialtiesStore,
       {
@@ -118,8 +119,12 @@ export async function proposeSpecialty(input: {
   category?: string;
   notes?: string;
 }): Promise<SpecialtyRequest> {
-  if (isSupabaseMode()) return supabaseSpecialties.proposeSpecialty(input);
-  return mockProposeSpecialty(input);
+  const normalized = {
+    ...input,
+    proposedSlug: resolveSpecialtySlug(input.proposedName, input.proposedSlug),
+  };
+  if (isSupabaseMode()) return supabaseSpecialties.proposeSpecialty(normalized);
+  return mockProposeSpecialty(normalized);
 }
 
 export async function adminReviewSpecialtyRequest(

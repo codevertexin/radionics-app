@@ -96,6 +96,113 @@ async function mockUploadCertDocument(certId: string, file: File): Promise<CertD
   return doc;
 }
 
+async function mockUpdateCertification(
+  certId: string,
+  input: {
+    yearsOfExperience: number;
+    experienceDescription?: string;
+    trainingInstitution?: string;
+    trainingCompletedDate?: string;
+    notes?: string;
+  },
+): Promise<Certification> {
+  await delay();
+  const idx = certsStore.findIndex(c => c.id === certId && c.therapistId === 'therapist-001');
+  if (idx === -1) throw new Error('Certification not found');
+  if (certsStore[idx].status === 'approved') {
+    throw new Error('Cannot update approved certification');
+  }
+
+  certsStore[idx] = {
+    ...certsStore[idx],
+    yearsOfExperience: input.yearsOfExperience,
+    experienceDescription: input.experienceDescription,
+    trainingInstitution: input.trainingInstitution,
+    trainingCompletedDate: input.trainingCompletedDate,
+    notes: input.notes,
+    updatedAt: new Date().toISOString(),
+  };
+  return cloneCert(certsStore[idx]);
+}
+
+async function mockRemoveCertificationDocument(documentId: string): Promise<void> {
+  await delay();
+  const cert = certsStore.find(c => c.documents.some(d => d.id === documentId));
+  if (!cert || cert.therapistId !== 'therapist-001') throw new Error('Document not found');
+  if (cert.status === 'approved') throw new Error('Cannot remove document from approved certification');
+
+  certsStore = certsStore.map(c =>
+    c.id === cert.id
+      ? { ...c, documents: c.documents.filter(d => d.id !== documentId) }
+      : c,
+  );
+}
+
+async function mockResubmitCertification(
+  certId: string,
+  input: {
+    yearsOfExperience: number;
+    experienceDescription?: string;
+    trainingInstitution?: string;
+    trainingCompletedDate?: string;
+    notes?: string;
+  },
+  options: { removeDocumentIds?: string[]; newFiles?: File[] } = {},
+): Promise<Certification> {
+  await delay();
+  const idx = certsStore.findIndex(c => c.id === certId && c.therapistId === 'therapist-001');
+  if (idx === -1) throw new Error('Certification not found');
+  const cert = certsStore[idx];
+  if (cert.status !== 'rejected' && cert.status !== 'expired') {
+    throw new Error('Only rejected or expired certifications can be resubmitted');
+  }
+
+  const removeIds = new Set(options.removeDocumentIds ?? []);
+  let documents = cert.documents.filter(d => !removeIds.has(d.id));
+
+  if (options.newFiles?.length) {
+    for (const file of options.newFiles) {
+      const ext = file.name.split('.').pop()?.toLowerCase() ?? 'pdf';
+      const fileType = (['pdf', 'jpg', 'jpeg', 'png'].includes(ext) ? ext : 'pdf') as DocFileType;
+      documents = [
+        ...documents,
+        {
+          id: `cdoc-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          certificationId: certId,
+          fileUrl: `mock://certifications/${certId}/${file.name}`,
+          fileName: file.name,
+          fileType,
+          fileSize: file.size,
+          uploadedAt: new Date().toISOString(),
+        },
+      ];
+    }
+  }
+
+  if (documents.length < 1) {
+    throw new Error('É necessário pelo menos um documento para resubmeter a certificação');
+  }
+
+  const updated: Certification = {
+    ...cert,
+    status: 'pending',
+    yearsOfExperience: input.yearsOfExperience,
+    experienceDescription: input.experienceDescription,
+    trainingInstitution: input.trainingInstitution,
+    trainingCompletedDate: input.trainingCompletedDate,
+    notes: input.notes,
+    adminNotes: undefined,
+    reviewedBy: undefined,
+    reviewedAt: undefined,
+    expiresAt: undefined,
+    submittedAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    documents,
+  };
+  certsStore[idx] = updated;
+  return cloneCert(updated);
+}
+
 async function mockReviewCertification(
   id: string,
   status: 'approved' | 'rejected',
@@ -169,6 +276,40 @@ export async function addCertificationDocuments(
 export async function uploadCertDocument(certId: string, file: File): Promise<CertDocument> {
   if (isSupabaseMode()) return supabaseCerts.uploadCertificationDocument(certId, file);
   return mockUploadCertDocument(certId, file);
+}
+
+export async function updateCertification(
+  certId: string,
+  input: {
+    yearsOfExperience: number;
+    experienceDescription?: string;
+    trainingInstitution?: string;
+    trainingCompletedDate?: string;
+    notes?: string;
+  },
+): Promise<Certification> {
+  if (isSupabaseMode()) return supabaseCerts.updateCertification(certId, input);
+  return mockUpdateCertification(certId, input);
+}
+
+export async function removeCertificationDocument(documentId: string): Promise<void> {
+  if (isSupabaseMode()) return supabaseCerts.removeCertificationDocument(documentId);
+  return mockRemoveCertificationDocument(documentId);
+}
+
+export async function resubmitCertification(
+  certId: string,
+  input: {
+    yearsOfExperience: number;
+    experienceDescription?: string;
+    trainingInstitution?: string;
+    trainingCompletedDate?: string;
+    notes?: string;
+  },
+  options: { removeDocumentIds?: string[]; newFiles?: File[] } = {},
+): Promise<Certification> {
+  if (isSupabaseMode()) return supabaseCerts.resubmitCertification(certId, input, options);
+  return mockResubmitCertification(certId, input, options);
 }
 
 export async function adminReviewCertification(

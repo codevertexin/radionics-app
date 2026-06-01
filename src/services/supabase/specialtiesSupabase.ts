@@ -1,4 +1,5 @@
 import { requireSupabaseClient } from '@/lib/dataMode';
+import { resolveSpecialtySlug } from '@/lib/slug';
 import { requireAuthUserId } from '@/lib/supabase/auth';
 import { wrapSupabaseError } from '@/lib/supabase/errors';
 import {
@@ -58,12 +59,14 @@ export async function proposeSpecialty(input: {
   const client = requireSupabaseClient();
   const userId = await requireAuthUserId(client);
 
+  const proposedSlug = resolveSpecialtySlug(input.proposedName, input.proposedSlug);
+
   const { data, error } = await client
     .from('radionics_specialty_requests')
     .insert({
       therapist_id: userId,
       proposed_name: input.proposedName,
-      proposed_slug: input.proposedSlug,
+      proposed_slug: proposedSlug,
       description: input.description,
       category: input.category,
       notes: input.notes,
@@ -108,9 +111,7 @@ export async function adminReviewSpecialtyRequest(
 
   if (status === 'approved') {
     const row = existing as SpecialtyRequestRow;
-    const slug =
-      row.proposed_slug ??
-      row.proposed_name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+    const slug = resolveSpecialtySlug(row.proposed_name, row.proposed_slug ?? undefined);
 
     const { error: insertError } = await client.from('radionics_specialties').insert({
       name: row.proposed_name,

@@ -67,6 +67,23 @@ A UI (`CertificationsPage`) continua a importar os aliases legados (`getSpecialt
 | `proposeSpecialty()` | — | `INSERT radionics_specialty_requests` |
 | `adminReviewSpecialtyRequest()` | `reviewSpecialtyRequest` | update + cria specialty se aprovado |
 
+### Normalização de slugs (`src/lib/slug.ts`)
+
+`proposed_slug` e `radionics_specialties.slug` (na aprovação admin) passam por `resolveSpecialtySlug()`:
+
+- Remove acentos/diacríticos (NFD)
+- Lowercase
+- Espaços → hífens
+- Remove caracteres especiais
+- Colapsa hífens duplicados
+- Trim de hífens nas extremidades
+
+| Entrada | Saída |
+|---------|-------|
+| `Mesa Radiónica da Proteção de Arcanjo Miguel` | `mesa-radionica-da-protecao-de-arcanjo-miguel` |
+| `  MAP — Oficial  ` | `map-oficial` |
+| `Terapia Floral (Bach)` | `terapia-floral-bach` |
+
 ---
 
 ## API — Certifications
@@ -81,6 +98,23 @@ A UI (`CertificationsPage`) continua a importar os aliases legados (`getSpecialt
 | `addCertificationDocuments()` | — | alias de batch upload |
 | `listCertificationDocuments()` | — | docs por `certification_id` |
 | `adminReviewCertification()` | `reviewCertification` | aprovar/rejeitar + `expires_at` |
+| `updateCertification()` | — | actualiza campos (sem mudar status) |
+| `resubmitCertification()` | — | rejected/expired → pending + limpa review |
+| `removeCertificationDocument()` | — | apaga metadata + ficheiro storage |
+
+### Fluxo rejected → resubmit
+
+1. Admin rejeita → `status = rejected`, `admin_notes` preenchido.
+2. Terapeuta vê motivo, dados e documentos no painel; clica **Corrigir e resubmeter**.
+3. Modal pré-preenchido: anos, instituição, data, notas, documentos existentes (removíveis), novos uploads.
+4. `resubmitCertification()`:
+   - Remove documentos seleccionados (`therapist_specialty_documents` + storage)
+   - `status = pending`, `admin_notes = null`, `reviewed_at/by = null`, `submitted_at = now()`
+   - Upload de novos ficheiros
+   - Validação: ≥ 1 documento no total
+5. Admin vê novamente na aba **Em análise**.
+
+**RLS:** migration `20260531130000_certifications_resubmit_rls.sql` — terapeuta só edita certificações em `not_certified | pending | rejected | expired` (nunca `approved`).
 
 ---
 
