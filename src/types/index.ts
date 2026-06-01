@@ -309,6 +309,11 @@ export interface Session {
   clientId: string;
   clientName: string;
   therapistId: string;
+  /** Catálogo de especialidades (UUID Supabase ou spec-* mock). */
+  specialtyId: string;
+  specialtyName: string;
+  specialtySlug: string;
+  /** Chave interna de ferramentas/templates legado (meth-map, meth-rad35, …). */
   methodologyId: string;
   methodologyName: string;
   methodologyCode: string;

@@ -1,4 +1,5 @@
 import { queryClient } from '@/lib/queryClient';
+import { resetClientsStore } from '@/services/clientsService';
 import { resetCertificationsStore } from '@/services/certificationsService';
 import { resetSessionsStore } from '@/services/sessionsService';
 import { resetSpecialtiesStores } from '@/services/specialtiesService';
@@ -12,6 +13,7 @@ const SENSITIVE_QUERY_PREFIXES = [
   'my-specialty-requests',
   'all-specialty-requests',
   'approved-specialties',
+  'clients',
   'profile',
   'certifications',
   'radionics-admin',
@@ -26,6 +28,7 @@ export function clearUserState(): void {
   }
 
   resetSessionsStore();
+  resetClientsStore();
   resetSpecialtiesStores();
   resetCertificationsStore();
 }

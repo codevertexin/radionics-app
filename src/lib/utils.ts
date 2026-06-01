@@ -1,5 +1,6 @@
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import type { SessionMode } from '@/types';
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -28,6 +29,12 @@ export function timeAgo(date: string | Date) {
 export function getInitials(name: string) {
   return name.split(' ').slice(0, 2).map(n => n[0]).join('').toUpperCase();
 }
+
+export const SESSION_MODE_LABELS: Record<SessionMode, string> = {
+  presential: 'Presencial',
+  online: 'Online',
+  distance: 'À distância',
+};
 
 export const SESSION_STATUS_LABELS: Record<string, string> = {
   draft: 'Rascunho',

@@ -1,16 +1,15 @@
 import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
-  ChevronLeft, ChevronRight, CheckCircle2, Lock, User, Layers, Sparkles,
+  ChevronLeft, ChevronRight, CheckCircle2, Lock, User, Layers, Sparkles, Users,
 } from 'lucide-react';
-import { CLIENTS } from '@/data/mock-data';
 import {
   getActiveTemplatesForSpecialty,
-  resolveSpecialtyToMethodologyId,
 } from '@/lib/sessionTemplates';
+import { SESSION_MODE_LABELS, cn } from '@/lib/utils';
+import { listClients } from '@/services/clientsService';
 import { getApprovedSpecialties } from '@/services/specialtiesService';
 import { createSession } from '@/services/sessionsService';
-import { cn } from '@/lib/utils';
 import type { Specialty, Template, Client, SessionMode } from '@/types';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 
@@ -39,6 +38,11 @@ export default function NewSessionPage() {
     queryFn: getApprovedSpecialties,
   });
 
+  const { data: clients = [], isLoading: clientsLoading } = useQuery({
+    queryKey: ['clients'],
+    queryFn: listClients,
+  });
+
   const availableTemplates = useMemo(() => {
     if (!selectedSpecialty) return [];
     return getActiveTemplatesForSpecialty(selectedSpecialty);
@@ -47,6 +51,7 @@ export default function NewSessionPage() {
   const stepIndex = STEPS.findIndex(s => s.id === step);
 
   const goNext = () => {
+    if (step === 'client' && !selectedClient) return;
     const next = STEPS[stepIndex + 1];
     if (next) setStep(next.id);
   };
@@ -62,8 +67,11 @@ export default function NewSessionPage() {
     try {
       const session = await createSession({
         clientId: selectedClient.id,
-        specialtyId: resolveSpecialtyToMethodologyId(selectedSpecialty),
+        specialtyId: selectedSpecialty.id,
+        specialtyName: selectedSpecialty.name,
+        specialtySlug: selectedSpecialty.slug,
         templateId: selectedTemplate.id,
+        templateName: selectedTemplate.name,
         sessionMode,
         intention: intention || undefined,
       });
@@ -73,6 +81,8 @@ export default function NewSessionPage() {
       setCreating(false);
     }
   };
+
+  const canProceedFromClient = Boolean(selectedClient);
 
   return (
     <div className="min-h-full bg-[var(--color-void)]">
@@ -125,6 +135,7 @@ export default function NewSessionPage() {
                     onClick={() => {
                       setSelectedSpecialty(spec);
                       setSelectedTemplate(null);
+                      setSelectedClient(null);
                       goNext();
                     }}
                     className={cn(
@@ -214,23 +225,65 @@ export default function NewSessionPage() {
         {step === 'client' && (
           <>
             <h2 className="font-cinzel text-sm font-semibold text-[var(--color-text-secondary)]">Escolher cliente</h2>
-            <div className="space-y-2">
-              {CLIENTS.map(client => (
+            {selectedTemplate && (
+              <p className="text-xs text-[var(--color-text-muted)]">
+                Template: <span className="text-[var(--color-text-secondary)]">{selectedTemplate.name}</span>
+              </p>
+            )}
+            {clientsLoading ? (
+              <p className="text-sm text-[var(--color-text-muted)]">A carregar clientes…</p>
+            ) : clients.length === 0 ? (
+              <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface-0)] p-8 text-center">
+                <Users size={32} className="mx-auto text-[var(--color-text-muted)] opacity-40 mb-3" />
+                <p className="text-sm text-[var(--color-text-primary)] font-medium mb-2">
+                  Nenhum cliente disponível.
+                </p>
+                <p className="text-sm text-[var(--color-text-muted)] mb-4">
+                  Adicione um cliente antes de iniciar uma sessão.
+                </p>
+                <Link to="/clients" className="text-sm text-[var(--color-gold)] hover:underline">
+                  Ir para Clientes
+                </Link>
+              </div>
+            ) : (
+              <>
+                <div className="space-y-2">
+                  {clients.map(client => (
+                    <button
+                      key={client.id}
+                      type="button"
+                      onClick={() => setSelectedClient(client)}
+                      className={cn(
+                        'w-full flex items-center gap-3 px-4 py-3 rounded-xl border text-left transition-colors',
+                        selectedClient?.id === client.id
+                          ? 'border-[var(--color-gold)] bg-[var(--color-gold)]/5'
+                          : 'border-[var(--color-border)] bg-[var(--color-surface-0)] hover:border-[var(--color-gold)]/50',
+                      )}
+                    >
+                      <User size={16} className="text-[var(--color-text-muted)] shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-[var(--color-text-primary)]">{client.name}</p>
+                        <p className="text-xs text-[var(--color-text-muted)]">
+                          {client.email ?? client.whatsapp ?? client.phone ?? 'Sem contacto'}
+                        </p>
+                      </div>
+                      {selectedClient?.id === client.id && (
+                        <CheckCircle2 size={16} className="text-[var(--color-gold)] shrink-0" />
+                      )}
+                    </button>
+                  ))}
+                </div>
                 <button
-                  key={client.id}
                   type="button"
-                  onClick={() => { setSelectedClient(client); goNext(); }}
-                  className="w-full flex items-center gap-3 px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-0)] hover:border-[var(--color-gold)]/50 text-left transition-colors"
+                  disabled={!canProceedFromClient}
+                  onClick={goNext}
+                  className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-[var(--color-gold)] text-[var(--color-void)] text-sm font-semibold hover:opacity-90 disabled:opacity-40 transition-opacity"
                 >
-                  <User size={16} className="text-[var(--color-text-muted)] shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-[var(--color-text-primary)]">{client.name}</p>
-                    <p className="text-xs text-[var(--color-text-muted)]">{client.email ?? client.phone ?? 'Sem contacto'}</p>
-                  </div>
-                  <ChevronRight size={14} className="text-[var(--color-text-muted)]" />
+                  Continuar
+                  <ChevronRight size={16} />
                 </button>
-              ))}
-            </div>
+              </>
+            )}
           </>
         )}
 
@@ -248,9 +301,9 @@ export default function NewSessionPage() {
                   onChange={e => setSessionMode(e.target.value as SessionMode)}
                   className="w-full bg-[var(--color-surface-2)] border border-[var(--color-border)] rounded-xl px-3 py-2 text-sm text-[var(--color-text-primary)]"
                 >
-                  <option value="presential">Presencial</option>
-                  <option value="online">Online</option>
-                  <option value="distance">À distância</option>
+                  <option value="presential">{SESSION_MODE_LABELS.presential}</option>
+                  <option value="online">{SESSION_MODE_LABELS.online}</option>
+                  <option value="distance">{SESSION_MODE_LABELS.distance}</option>
                 </select>
               </div>
               <div>
@@ -276,7 +329,13 @@ export default function NewSessionPage() {
           </>
         )}
 
-        {stepIndex > 0 && step !== 'confirm' && (
+        {stepIndex > 0 && step !== 'confirm' && !(step === 'client' && clients.length > 0) && (
+          <button type="button" onClick={goBack} className="text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]">
+            ← Voltar
+          </button>
+        )}
+
+        {step === 'client' && clients.length > 0 && (
           <button type="button" onClick={goBack} className="text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]">
             ← Voltar
           </button>

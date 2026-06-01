@@ -113,7 +113,8 @@ function SessionRow({ session }: { session: Session }) {
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-[var(--color-text-primary)]">{session.clientName}</p>
         <p className="text-xs text-[var(--color-text-muted)] truncate">
-          {session.methodologyName}
+          {session.specialtyName || session.methodologyName}
+          {session.templateName ? ` · ${session.templateName}` : ''}
           {session.scheduledAt && ` · ${formatDate(session.scheduledAt)} ${formatTime(session.scheduledAt)}`}
         </p>
       </div>
