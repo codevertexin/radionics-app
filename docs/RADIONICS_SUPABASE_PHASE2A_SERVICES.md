@@ -116,6 +116,31 @@ A UI (`CertificationsPage`) continua a importar os aliases legados (`getSpecialt
 
 **RLS:** migration `20260531130000_certifications_resubmit_rls.sql` — terapeuta só edita certificações em `not_certified | pending | rejected | expired` (nunca `approved`).
 
+### Regra de certificação única por terapeuta/especialidade
+
+**Base de dados** (Phase 1 migration `20260531120000_radionics_specialties_phase1.sql`):
+
+```sql
+constraint therapist_specialty_certifications_therapist_specialty_unique
+  unique (therapist_id, specialty_id)
+```
+
+Uma única linha em `therapist_specialty_certifications` por par terapeuta × especialidade.
+
+**`submitCertification()`** (`src/lib/certificationRules.ts`):
+
+| Estado existente | Acção |
+|------------------|--------|
+| (nenhum) | `INSERT` → `pending` |
+| `not_certified` | `UPDATE` → `pending` |
+| `pending` | Erro: *Esta certificação já está em análise.* |
+| `approved` | Erro: *Esta especialidade já está ativa.* |
+| `rejected` / `expired` | Erro: *Use o fluxo de correção/renovação…* → `resubmitCertification()` |
+
+**UI:** lista e painel lateral mostram acção por estado (Solicitar / Em análise / Ativa / Corrigir e resubmeter / Corrigir e renovar). Não abre modal de novo pedido para `pending` ou `approved`.
+
+**Admin:** `adminReviewCertification()` faz `UPDATE` na linha existente — nunca cria duplicado.
+
 ---
 
 ## Storage

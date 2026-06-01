@@ -24,6 +24,7 @@ import {
   reviewCertification,
 } from '@/services/certificationsService';
 import { isCurrentUserRadionicsAdmin } from '@/services/adminService';
+import { canOpenInitialSubmitModal, canOpenResubmitModal } from '@/lib/certificationRules';
 import type { Specialty, SpecialtyRequest, Certification, CertDocument, CertStatus, SpecialtyRequestStatus } from '@/types';
 
 // ─── Status configs ───────────────────────────────────────────
@@ -35,7 +36,7 @@ const CERT_STATUS_CONFIG: Record<CertStatus, {
   border: string;
 }> = {
   approved: {
-    label: 'Certificado',
+    label: 'Ativa',
     icon: CheckCircle2,
     color: 'text-emerald-400',
     bg: 'bg-emerald-900/20',
@@ -132,6 +133,101 @@ function DocRow({ doc, onRemove }: { doc: CertDocument; onRemove?: () => void })
       )}
     </div>
   );
+}
+
+// ─── Certification action by status (unique cert per specialty) ─
+function CertificationStatusAction({
+  status,
+  onSubmitCert,
+  variant = 'panel',
+}: {
+  status: CertStatus;
+  onSubmitCert: () => void;
+  variant?: 'panel' | 'row';
+}) {
+  const rowClass = 'text-[10px] transition-colors underline underline-offset-2';
+  const panelBtn = 'w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium';
+
+  if (variant === 'row') {
+    switch (status) {
+      case 'not_certified':
+        return (
+          <button
+            type="button"
+            onClick={e => { e.stopPropagation(); onSubmitCert(); }}
+            className={cn(rowClass, 'text-[var(--color-text-muted)] hover:text-[var(--color-gold)]')}
+          >
+            Solicitar certificação
+          </button>
+        );
+      case 'pending':
+        return <span className="text-[10px] text-amber-500 animate-pulse">Em análise</span>;
+      case 'approved':
+        return <span className="text-[10px] text-emerald-500">Ativa</span>;
+      case 'rejected':
+        return (
+          <button
+            type="button"
+            onClick={e => { e.stopPropagation(); onSubmitCert(); }}
+            className={cn(rowClass, 'text-amber-400 hover:text-amber-300')}
+          >
+            Corrigir e resubmeter
+          </button>
+        );
+      case 'expired':
+        return (
+          <button
+            type="button"
+            onClick={e => { e.stopPropagation(); onSubmitCert(); }}
+            className={cn(rowClass, 'text-orange-400 hover:text-orange-300')}
+          >
+            Corrigir e renovar
+          </button>
+        );
+      default:
+        return null;
+    }
+  }
+
+  switch (status) {
+    case 'not_certified':
+      return (
+        <button type="button" onClick={onSubmitCert} className={cn(panelBtn, 'bg-[var(--color-gold)] text-[var(--color-void)] font-semibold hover:opacity-90')}>
+          <Award size={14} />
+          Solicitar certificação
+        </button>
+      );
+    case 'pending':
+      return (
+        <div className={cn(panelBtn, 'border border-amber-700/40 text-amber-400 bg-amber-900/10 cursor-default')}>
+          <Clock size={13} />
+          Em análise
+        </div>
+      );
+    case 'approved':
+      return (
+        <div className={cn(panelBtn, 'border border-emerald-700/40 text-emerald-400 bg-emerald-900/10 cursor-default')}>
+          <CheckCircle2 size={13} />
+          Ativa
+        </div>
+      );
+    case 'rejected':
+      return (
+        <button type="button" onClick={onSubmitCert} className={cn(panelBtn, 'border border-amber-700/40 bg-amber-900/10 text-amber-400 hover:bg-amber-900/20')}>
+          <RefreshCw size={13} />
+          Corrigir e resubmeter
+        </button>
+      );
+    case 'expired':
+      return (
+        <button type="button" onClick={onSubmitCert} className={cn(panelBtn, 'border border-orange-700/40 bg-orange-900/10 text-orange-400 hover:bg-orange-900/20')}>
+          <RefreshCw size={13} />
+          Corrigir e renovar
+        </button>
+      );
+    default:
+      return null;
+  }
 }
 
 // ─── Submit cert modal ────────────────────────────────────────
@@ -724,36 +820,8 @@ function CertDetailPanel({
           </div>
         )}
 
-        {/* Actions */}
-        {status === 'not_certified' && (
-          <button
-            onClick={onSubmitCert}
-            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-[var(--color-gold)] text-[var(--color-void)] text-sm font-semibold hover:opacity-90 transition-opacity"
-          >
-            <Award size={14} />
-            Solicitar certificação
-          </button>
-        )}
-        {(status === 'rejected' || status === 'expired') && (
-          <button
-            onClick={onSubmitCert}
-            className={cn(
-              'w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border text-sm font-medium transition-colors',
-              status === 'rejected'
-                ? 'border-amber-700/40 bg-amber-900/10 text-amber-400 hover:bg-amber-900/20'
-                : 'border-orange-700/40 bg-orange-900/10 text-orange-400 hover:bg-orange-900/20',
-            )}
-          >
-            <RefreshCw size={13} />
-            {status === 'rejected' ? 'Corrigir e resubmeter' : 'Corrigir e renovar'}
-          </button>
-        )}
-        {status === 'pending' && (
-          <div className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-amber-700/40 text-amber-400 bg-amber-900/10 text-sm font-medium cursor-default">
-            <Clock size={13} />
-            Aguarda aprovação
-          </div>
-        )}
+        {/* Actions — one certification row per specialty */}
+        <CertificationStatusAction status={status} onSubmitCert={onSubmitCert} variant="panel" />
       </div>
     </div>
   );
@@ -823,17 +891,7 @@ function SpecialtyRow({
                 Desde {new Date(certification.reviewedAt).toLocaleDateString('pt-PT', { month: 'short', year: 'numeric' })}
               </span>
             )}
-            {status === 'pending' && (
-              <span className="text-[10px] text-amber-500 animate-pulse">Em análise...</span>
-            )}
-            {status === 'not_certified' && (
-              <button
-                onClick={e => { e.stopPropagation(); onSubmitCert(); }}
-                className="text-[10px] text-[var(--color-text-muted)] hover:text-[var(--color-gold)] transition-colors underline underline-offset-2"
-              >
-                Solicitar certificação
-              </button>
-            )}
+            <CertificationStatusAction status={status} onSubmitCert={onSubmitCert} variant="row" />
           </div>
         </div>
       </div>
@@ -1093,11 +1151,17 @@ export default function CertificationsPage() {
 
   const openCertModal = (specialty: Specialty) => {
     const cert = myCerts.find(c => c.specialtyId === specialty.id);
-    const isResubmit = cert?.status === 'rejected' || cert?.status === 'expired';
-    setCertModal({
-      specialty,
-      certification: isResubmit ? cert : undefined,
-    });
+    const status = cert?.status;
+
+    if (canOpenResubmitModal(status)) {
+      setCertModal({ specialty, certification: cert });
+      return;
+    }
+    if (canOpenInitialSubmitModal(status)) {
+      setCertModal({ specialty });
+      return;
+    }
+    // pending / approved — no new submit modal
   };
   const [showProposeModal, setShowProposeModal] = useState(false);
 

@@ -4,6 +4,7 @@
 
 import { CERTIFICATIONS } from '@/data/mock-data';
 import { isSupabaseMode } from '@/lib/dataMode';
+import { resolveSubmitAction, buildSubmitPayload } from '@/services/certificationSubmit';
 import * as supabaseCerts from '@/services/supabase/certificationsSupabase';
 import type { Certification, CertDocument, DocFileType } from '@/types';
 
@@ -46,25 +47,27 @@ async function mockSubmitCertification(input: {
     c => c.therapistId === 'therapist-001' && c.specialtyId === input.specialtyId,
   );
 
-  if (existing && (existing.status === 'approved' || existing.status === 'pending')) {
-    throw new Error('Certification already submitted or approved');
-  }
+  const action = resolveSubmitAction(existing?.status);
+  const submitFields = buildSubmitPayload(input);
 
   const cert: Certification = {
     id: existing?.id ?? `cert-${Date.now()}`,
     therapistId: 'therapist-001',
     specialtyId: input.specialtyId,
-    status: 'pending',
-    yearsOfExperience: input.yearsOfExperience,
-    experienceDescription: input.experienceDescription,
-    trainingInstitution: input.trainingInstitution,
-    trainingCompletedDate: input.trainingCompletedDate,
-    notes: input.notes,
-    submittedAt: new Date().toISOString(),
+    status: submitFields.status,
+    yearsOfExperience: submitFields.yearsOfExperience,
+    experienceDescription: submitFields.experienceDescription,
+    trainingInstitution: submitFields.trainingInstitution,
+    trainingCompletedDate: submitFields.trainingCompletedDate,
+    notes: submitFields.notes,
+    submittedAt: submitFields.submittedAt,
+    adminNotes: undefined,
+    reviewedBy: undefined,
+    reviewedAt: undefined,
     documents: existing?.documents ?? [],
   };
 
-  if (existing) {
+  if (action === 'update' && existing) {
     certsStore = certsStore.map(c => (c.id === existing.id ? cert : c));
   } else {
     certsStore = [cert, ...certsStore];

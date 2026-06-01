@@ -10,6 +10,7 @@ import {
   type CertDocumentRow,
   type CertificationRow,
 } from '@/lib/supabase/mappers';
+import { resolveSubmitAction, buildSubmitPayload } from '@/services/certificationSubmit';
 import type { Certification, CertDocument } from '@/types';
 
 const BUCKET = 'radionics-certifications';
@@ -158,28 +159,27 @@ export async function submitCertification(input: {
   if (existingError) wrapSupabaseError('submitCertification.lookup', existingError);
 
   const existingRow = existing as CertificationRow | null;
-  if (existingRow && (existingRow.status === 'approved' || existingRow.status === 'pending')) {
-    throw new Error('Certification already submitted or approved');
-  }
+  const action = resolveSubmitAction(existingRow?.status as Certification['status'] | undefined);
+  const submitFields = buildSubmitPayload(input);
 
   const payload = {
     therapist_id: userId,
     specialty_id: input.specialtyId,
-    status: 'pending' as const,
-    years_of_experience: input.yearsOfExperience,
-    experience_description: input.experienceDescription ?? null,
-    training_institution: input.trainingInstitution ?? null,
-    training_completed_date: input.trainingCompletedDate ?? null,
-    notes: input.notes ?? null,
-    submitted_at: new Date().toISOString(),
-    admin_notes: null,
-    reviewed_at: null,
-    reviewed_by: null,
+    status: submitFields.status,
+    years_of_experience: submitFields.yearsOfExperience,
+    experience_description: submitFields.experienceDescription ?? null,
+    training_institution: submitFields.trainingInstitution ?? null,
+    training_completed_date: submitFields.trainingCompletedDate ?? null,
+    notes: submitFields.notes ?? null,
+    submitted_at: submitFields.submittedAt,
+    admin_notes: submitFields.adminNotes,
+    reviewed_at: submitFields.reviewedAt,
+    reviewed_by: submitFields.reviewedBy,
   };
 
   let certRow: CertificationRow;
 
-  if (existingRow) {
+  if (action === 'update' && existingRow) {
     const { data, error } = await client
       .from('therapist_specialty_certifications')
       .update(payload)
@@ -194,7 +194,12 @@ export async function submitCertification(input: {
       .insert(payload)
       .select('*')
       .single();
-    if (error) wrapSupabaseError('submitCertification.insert', error);
+    if (error) {
+      if (error.code === '23505') {
+        throw new Error('Já existe uma certificação para esta especialidade. Use corrigir ou aguarde análise.');
+      }
+      wrapSupabaseError('submitCertification.insert', error);
+    }
     certRow = data as CertificationRow;
   }
 
