@@ -388,11 +388,43 @@ export const CLIENTS: Client[] = [
 // ─── TEMPLATES ───────────────────────────────────────────────
 export const TEMPLATES: Template[] = [
   {
+    id: 'tmpl-map-official',
+    name: 'MAP — Template Oficial',
+    description: 'Template oficial MAP. Identificação, intenção, diagnóstico e encerramento.',
+    methodologyId: 'meth-map',
+    methodologyName: 'MAP',
+    specialtySlugs: ['map'],
+    specialtyIds: ['spec-map'],
+    isBaseTemplate: true,
+    templateType: 'official',
+    status: 'active',
+    createdAt: '2024-01-01',
+    updatedAt: '2024-01-01',
+    blocks: [
+      { id: 'blk-map-01', blockCode: 'client_id', stageCode: 'preparation', title: 'Identificação do Cliente', orderIndex: 0, isRequired: true, showInSession: true, showInReport: true, showInHub: true, isPrivate: false, fields: [
+        { id: 'fld-map-01', fieldCode: 'full_name', label: 'Nome Completo', fieldType: 'short_text', orderIndex: 0, isRequired: true, placeholder: 'Nome completo do cliente' },
+        { id: 'fld-map-02', fieldCode: 'birth_date', label: 'Data de Nascimento', fieldType: 'date', orderIndex: 1, isRequired: false },
+      ]},
+      { id: 'blk-map-02', blockCode: 'session_intent', stageCode: 'preparation', title: 'Objetivo da Sessão', orderIndex: 1, isRequired: true, showInSession: true, showInReport: true, showInHub: true, isPrivate: false, fields: [
+        { id: 'fld-map-03', fieldCode: 'intention', label: 'Intenção Terapêutica', fieldType: 'long_text', orderIndex: 0, isRequired: true, placeholder: 'Descreva o objetivo principal desta sessão MAP...' },
+      ]},
+      { id: 'blk-map-03', blockCode: 'map_analysis', stageCode: 'diagnosis', title: 'Análise MAP', orderIndex: 2, isRequired: false, showInSession: true, showInReport: true, showInHub: false, isPrivate: false, fields: [
+        { id: 'fld-map-04', fieldCode: 'analysis_notes', label: 'Notas de Análise', fieldType: 'long_text', orderIndex: 0, isRequired: false, placeholder: 'Observações do diagnóstico energético...' },
+      ]},
+      { id: 'blk-map-04', blockCode: 'recommendations', stageCode: 'closing', title: 'Recomendações', orderIndex: 3, isRequired: false, showInSession: true, showInReport: true, showInHub: true, isPrivate: false, fields: [
+        { id: 'fld-map-05', fieldCode: 'recommendations', label: 'Recomendações', fieldType: 'long_text', orderIndex: 0, isRequired: false },
+        { id: 'fld-map-06', fieldCode: 'reverberation_days', label: 'Dias de Reverberação', fieldType: 'number', orderIndex: 1, isRequired: false, placeholder: '21' },
+      ]},
+    ],
+  },
+  {
     id: 'tmpl-rad35-official',
     name: 'Mesa 35 — Template Oficial',
     description: 'Template oficial da Mesa dos 35 Gráficos Radiônicos. Inclui todos os blocos recomendados.',
     methodologyId: 'meth-rad35',
     methodologyName: 'Mesa dos 35 Gráficos Radiônicos',
+    specialtySlugs: ['mesa-35'],
+    specialtyIds: ['spec-rad35'],
     isBaseTemplate: true,
     templateType: 'official',
     status: 'active',
@@ -432,6 +464,8 @@ export const TEMPLATES: Template[] = [
     description: 'Template oficial da Mesa dos 49 Símbolos Angelicais.',
     methodologyId: 'meth-rad49',
     methodologyName: 'Mesa dos 49 Símbolos Angelicais',
+    specialtySlugs: ['mesa-49'],
+    specialtyIds: ['spec-rad49'],
     isBaseTemplate: true,
     templateType: 'official',
     status: 'active',
@@ -455,6 +489,8 @@ export const TEMPLATES: Template[] = [
     description: 'Template simplificado para sessões mais rápidas. Foco nos gráficos e recomendações essenciais.',
     methodologyId: 'meth-rad35',
     methodologyName: 'Mesa dos 35 Gráficos Radiônicos',
+    specialtySlugs: ['mesa-35'],
+    specialtyIds: ['spec-rad35'],
     isBaseTemplate: false,
     templateType: 'custom',
     status: 'active',

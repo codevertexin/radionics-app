@@ -3,7 +3,11 @@ import { Link, useNavigate } from 'react-router-dom';
 import {
   ChevronLeft, ChevronRight, CheckCircle2, Lock, User, Layers, Sparkles,
 } from 'lucide-react';
-import { CLIENTS, TEMPLATES } from '@/data/mock-data';
+import { CLIENTS } from '@/data/mock-data';
+import {
+  getActiveTemplatesForSpecialty,
+  resolveSpecialtyToMethodologyId,
+} from '@/lib/sessionTemplates';
 import { getApprovedSpecialties } from '@/services/specialtiesService';
 import { createSession } from '@/services/sessionsService';
 import { cn } from '@/lib/utils';
@@ -37,8 +41,7 @@ export default function NewSessionPage() {
 
   const availableTemplates = useMemo(() => {
     if (!selectedSpecialty) return [];
-    const methId = mapSpecialtyToMethodologyId(selectedSpecialty.id);
-    return TEMPLATES.filter(t => t.methodologyId === methId && t.status === 'active');
+    return getActiveTemplatesForSpecialty(selectedSpecialty);
   }, [selectedSpecialty]);
 
   const stepIndex = STEPS.findIndex(s => s.id === step);
@@ -59,7 +62,7 @@ export default function NewSessionPage() {
     try {
       const session = await createSession({
         clientId: selectedClient.id,
-        specialtyId: mapSpecialtyToMethodologyId(selectedSpecialty.id),
+        specialtyId: resolveSpecialtyToMethodologyId(selectedSpecialty),
         templateId: selectedTemplate.id,
         sessionMode,
         intention: intention || undefined,
@@ -119,7 +122,11 @@ export default function NewSessionPage() {
                   <button
                     key={spec.id}
                     type="button"
-                    onClick={() => { setSelectedSpecialty(spec); goNext(); }}
+                    onClick={() => {
+                      setSelectedSpecialty(spec);
+                      setSelectedTemplate(null);
+                      goNext();
+                    }}
                     className={cn(
                       'text-left rounded-2xl border p-4 transition-all hover:border-[var(--color-gold)]/50',
                       selectedSpecialty?.id === spec.id
@@ -145,23 +152,62 @@ export default function NewSessionPage() {
         {step === 'template' && (
           <>
             <h2 className="font-cinzel text-sm font-semibold text-[var(--color-text-secondary)]">Escolher template</h2>
-            <div className="space-y-2">
-              {availableTemplates.map(tmpl => (
-                <button
-                  key={tmpl.id}
-                  type="button"
-                  onClick={() => { setSelectedTemplate(tmpl); goNext(); }}
-                  className="w-full flex items-center gap-3 px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-0)] hover:border-[var(--color-gold)]/50 text-left transition-colors"
-                >
-                  <Layers size={16} className="text-[var(--color-gold)] shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-[var(--color-text-primary)]">{tmpl.name}</p>
-                    <p className="text-xs text-[var(--color-text-muted)]">{tmpl.templateType === 'official' ? 'Oficial' : 'Personalizado'}</p>
-                  </div>
-                  <ChevronRight size={14} className="text-[var(--color-text-muted)]" />
-                </button>
-              ))}
-            </div>
+            {selectedSpecialty && (
+              <p className="text-xs text-[var(--color-text-muted)]">
+                Especialidade: <span className="text-[var(--color-text-secondary)]">{selectedSpecialty.name}</span>
+              </p>
+            )}
+            {availableTemplates.length === 0 ? (
+              <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface-0)] p-8 text-center">
+                <Layers size={32} className="mx-auto text-[var(--color-text-muted)] opacity-40 mb-3" />
+                <p className="text-sm text-[var(--color-text-primary)] font-medium mb-2">
+                  Nenhum template disponível para esta especialidade.
+                </p>
+                <p className="text-sm text-[var(--color-text-muted)] mb-4">
+                  Crie um template ou escolha outra especialidade.
+                </p>
+                <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+                  <Link
+                    to="/templates/new"
+                    className="text-sm text-[var(--color-gold)] hover:underline"
+                  >
+                    Criar template
+                  </Link>
+                  <span className="hidden sm:inline text-[var(--color-text-muted)]">·</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedTemplate(null);
+                      setStep('specialty');
+                    }}
+                    className="text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]"
+                  >
+                    Escolher outra especialidade
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {availableTemplates.map(tmpl => (
+                  <button
+                    key={tmpl.id}
+                    type="button"
+                    onClick={() => { setSelectedTemplate(tmpl); goNext(); }}
+                    className="w-full flex items-center gap-3 px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-0)] hover:border-[var(--color-gold)]/50 text-left transition-colors"
+                  >
+                    <Layers size={16} className="text-[var(--color-gold)] shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-[var(--color-text-primary)]">{tmpl.name}</p>
+                      <p className="text-xs text-[var(--color-text-muted)]">
+                        {tmpl.templateType === 'official' ? 'Oficial' : 'Personalizado'}
+                        {tmpl.description ? ` · ${tmpl.description}` : ''}
+                      </p>
+                    </div>
+                    <ChevronRight size={14} className="text-[var(--color-text-muted)]" />
+                  </button>
+                ))}
+              </div>
+            )}
           </>
         )}
 
@@ -247,14 +293,4 @@ function SummaryRow({ label, value }: { label: string; value: string }) {
       <span className="font-medium text-[var(--color-text-primary)] text-right">{value}</span>
     </div>
   );
-}
-
-/** Maps specialty catalog IDs to session methodology IDs in mock data */
-function mapSpecialtyToMethodologyId(specialtyId: string): string {
-  const map: Record<string, string> = {
-    'spec-map': 'meth-map',
-    'spec-rad35': 'meth-rad35',
-    'spec-rad49': 'meth-rad49',
-  };
-  return map[specialtyId] ?? specialtyId;
 }

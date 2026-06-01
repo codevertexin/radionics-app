@@ -206,6 +206,10 @@ export interface Template {
   description?: string;
   methodologyId: string;
   methodologyName: string;
+  /** Ligação explícita ao catálogo (UUID Supabase ou spec-* mock). */
+  specialtyIds?: string[];
+  /** Fallback estável entre ambientes (seed slugs: map, mesa-35, mesa-49). */
+  specialtySlugs?: string[];
   isBaseTemplate: boolean;
   templateType: TemplateType;
   status: 'active' | 'archived';
