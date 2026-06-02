@@ -6,7 +6,13 @@
 import { isMockMode, isSupabaseMode } from '@/lib/dataMode';
 import { MethodologyEngineError } from '@/lib/methodology/errors';
 import {
+  groupMediaByAssetId,
+  resolvePrimaryAssetMedia as resolveMedia,
+  type ResolvedAssetMedia,
+} from '@/lib/methodology/mediaResolution';
+import {
   getMockMesa35AssetContent,
+  getMockMesa35AssetMedia,
   getMockMesa35Assets,
   getMockMesa35Context,
   getMockMesa35Tools,
@@ -14,6 +20,7 @@ import {
 import * as supabaseEngine from '@/services/supabase/methodologyEngineSupabase';
 import type {
   MethodologyAsset,
+  MethodologyAssetMedia,
   SpecialtyAssetContent,
   SpecialtyMethodologyContext,
   SpecialtyToolLink,
@@ -26,7 +33,11 @@ export interface SpecialtyMethodologyBundle {
   tools: SpecialtyToolLink[];
   assets: MethodologyAsset[];
   assetContent: SpecialtyAssetContent[];
+  assetMedia: MethodologyAssetMedia[];
+  mediaByAssetId: Record<string, MethodologyAssetMedia[]>;
 }
+
+export type { ResolvedAssetMedia } from '@/lib/methodology/mediaResolution';
 
 function normalizeSlug(slug: string): string {
   return slug.trim().toLowerCase();
@@ -70,6 +81,14 @@ async function mockGetSpecialtyAssetContent(slug: string): Promise<SpecialtyAsse
     return [];
   }
   return getMockMesa35AssetContent();
+}
+
+async function mockGetSpecialtyAssetMedia(slug: string): Promise<MethodologyAssetMedia[]> {
+  await delay();
+  if (normalizeSlug(slug) !== 'mesa-35') {
+    return [];
+  }
+  return getMockMesa35AssetMedia();
 }
 
 export async function getSpecialtyTools(specialtySlug: string): Promise<SpecialtyToolLink[]> {
@@ -137,6 +156,83 @@ export async function getSpecialtyAssetContent(
   );
 }
 
+export async function getSpecialtyAssetMedia(
+  specialtySlug: string,
+): Promise<MethodologyAssetMedia[]> {
+  const slug = normalizeSlug(specialtySlug);
+  if (!slug) {
+    throw new MethodologyEngineError('specialtySlug é obrigatório.', 'CONFIG');
+  }
+
+  if (isMockMode()) {
+    return mockGetSpecialtyAssetMedia(slug);
+  }
+
+  if (isSupabaseMode()) {
+    const { media } = await supabaseEngine.supabaseGetSpecialtyAssetMedia(slug);
+    return media;
+  }
+
+  throw new MethodologyEngineError(
+    `VITE_DATA_MODE inválido. Use "mock" ou "supabase".`,
+    'CONFIG',
+  );
+}
+
+export async function resolvePrimaryAssetMedia(
+  assetId: string,
+  specialtySlug?: string,
+): Promise<ResolvedAssetMedia> {
+  if (!assetId.trim()) {
+    throw new MethodologyEngineError('assetId é obrigatório.', 'CONFIG');
+  }
+
+  if (specialtySlug) {
+    const slug = normalizeSlug(specialtySlug);
+    const [assets, media] = await Promise.all([
+      getSpecialtyAssets(slug),
+      getSpecialtyAssetMedia(slug),
+    ]);
+    const asset = assets.find(a => a.id === assetId);
+    if (!asset) {
+      throw new MethodologyEngineError(
+        `Asset "${assetId}" não encontrado para especialidade "${slug}".`,
+        'NOT_FOUND',
+      );
+    }
+    const context = isMockMode()
+      ? mockContextForSlug(slug)
+      : (await supabaseEngine.supabaseGetSpecialtyTools(slug)).context;
+    const assetMedia = media.filter(m => m.assetId === assetId);
+    return resolveMedia(asset, assetMedia, { specialtyId: context.specialtyId });
+  }
+
+  if (isMockMode()) {
+    const assets = await getMockMesa35Assets();
+    const asset = assets.find(a => a.id === assetId);
+    if (!asset) {
+      throw new MethodologyEngineError(`Asset "${assetId}" não encontrado.`, 'NOT_FOUND');
+    }
+    return resolveMedia(asset, []);
+  }
+
+  if (isSupabaseMode()) {
+    const [asset, media] = await Promise.all([
+      supabaseEngine.supabaseGetMethodologyAssetById(assetId),
+      supabaseEngine.supabaseGetAssetMediaByAssetId(assetId),
+    ]);
+    if (!asset) {
+      throw new MethodologyEngineError(`Asset "${assetId}" não encontrado.`, 'NOT_FOUND');
+    }
+    return resolveMedia(asset, media);
+  }
+
+  throw new MethodologyEngineError(
+    `VITE_DATA_MODE inválido. Use "mock" ou "supabase".`,
+    'CONFIG',
+  );
+}
+
 /** Convenience loader for the methodology debug page. */
 export async function getSpecialtyMethodologyBundle(
   specialtySlug: string,
@@ -145,21 +241,37 @@ export async function getSpecialtyMethodologyBundle(
 
   if (isMockMode()) {
     const context = mockContextForSlug(slug);
-    const [tools, assets, assetContent] = await Promise.all([
+    const [tools, assets, assetContent, assetMedia] = await Promise.all([
       mockGetSpecialtyTools(slug),
       mockGetSpecialtyAssets(slug),
       mockGetSpecialtyAssetContent(slug),
+      mockGetSpecialtyAssetMedia(slug),
     ]);
-    return { context, tools, assets, assetContent };
+    return {
+      context,
+      tools,
+      assets,
+      assetContent,
+      assetMedia,
+      mediaByAssetId: groupMediaByAssetId(assetMedia),
+    };
   }
 
   if (isSupabaseMode()) {
     const { context, tools } = await supabaseEngine.supabaseGetSpecialtyTools(slug);
-    const [assets, assetContent] = await Promise.all([
+    const [assets, assetContent, assetMedia] = await Promise.all([
       supabaseEngine.supabaseGetSpecialtyAssets(slug).then(r => r.assets),
       supabaseEngine.supabaseGetSpecialtyAssetContent(slug).then(r => r.content),
+      supabaseEngine.supabaseGetSpecialtyAssetMedia(slug).then(r => r.media),
     ]);
-    return { context, tools, assets, assetContent };
+    return {
+      context,
+      tools,
+      assets,
+      assetContent,
+      assetMedia,
+      mediaByAssetId: groupMediaByAssetId(assetMedia),
+    };
   }
 
   throw new MethodologyEngineError(

@@ -5,6 +5,7 @@
 import { HAWKINS_LEVELS, SPECIALTIES, TOOLS_RAD35 } from '@/data/mock-data';
 import type {
   MethodologyAsset,
+  MethodologyAssetMedia,
   MethodologyTool,
   SpecialtyAssetContent,
   SpecialtyToolLink,
@@ -226,4 +227,9 @@ export function getMockMesa35Assets(): MethodologyAsset[] {
 
 export function getMockMesa35AssetContent(): SpecialtyAssetContent[] {
   return MOCK_MESA35_ASSET_CONTENT.map(c => ({ ...c }));
+}
+
+/** V2.4 — no seeded media URLs in mock (parity with empty Supabase table). */
+export function getMockMesa35AssetMedia(): MethodologyAssetMedia[] {
+  return [];
 }

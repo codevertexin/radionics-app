@@ -2,6 +2,7 @@ import { Link, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronLeft, Layers, AlertCircle, Loader2 } from 'lucide-react';
 import { getDataMode } from '@/lib/dataMode';
+import { resolvePrimaryAssetMedia as resolveMedia } from '@/lib/methodology/mediaResolution';
 import {
   getSpecialtyMethodologyBundle,
   isMethodologyEngineError,
@@ -31,7 +32,7 @@ export default function MethodologyDebugPage() {
           </Link>
           <div>
             <p className="text-[10px] uppercase tracking-widest text-amber-400/90 font-medium">
-              DEV · Methodology Engine V2.3
+              DEV · Methodology Engine V2.4
             </p>
             <h1 className="font-cinzel text-xl font-semibold text-[var(--color-text-primary)]">
               Debug metodologia
@@ -116,6 +117,18 @@ export default function MethodologyDebugPage() {
               </div>
             </section>
 
+            <section className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface-0)] p-5">
+              <h2 className="font-cinzel text-sm font-semibold text-[var(--color-text-secondary)] mb-2">
+                Media contextual (V2.4)
+              </h2>
+              <p className="text-2xl font-bold font-cinzel text-[var(--color-gold)]">
+                {data.assetMedia.length}
+              </p>
+              <p className="text-xs text-[var(--color-text-muted)] mt-1">
+                Registos em methodology_asset_media para assets desta especialidade
+              </p>
+            </section>
+
             <section className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface-0)] p-5 space-y-4">
               <h2 className="font-cinzel text-sm font-semibold text-[var(--color-text-secondary)]">
                 Assets por ferramenta ({data.assets.length} total)
@@ -128,25 +141,46 @@ export default function MethodologyDebugPage() {
                   {assets.length === 0 ? (
                     <p className="text-xs text-[var(--color-text-muted)] italic">Sem assets.</p>
                   ) : (
-                    <ul className="space-y-1">
-                      {assets.map(a => (
-                        <li
-                          key={a.id}
-                          className="text-xs text-[var(--color-text-secondary)] flex gap-2"
-                        >
-                          <span className="text-[var(--color-text-muted)] w-8">{a.sortOrder}</span>
-                          <span className="font-medium">{a.name}</span>
-                          <span className="text-[var(--color-text-muted)]">{a.slug}</span>
-                          <span
-                            className={cn(
-                              'px-1 rounded',
-                              a.assetType === 'graph' ? 'bg-sky-400/10 text-sky-400' : 'bg-violet-400/10 text-violet-400',
-                            )}
+                    <ul className="space-y-2">
+                      {assets.map(a => {
+                        const rows = data.mediaByAssetId[a.id] ?? [];
+                        const resolved = resolveMedia(a, rows, {
+                          specialtyId: data.context.specialtyId,
+                        });
+                        return (
+                          <li
+                            key={a.id}
+                            className="text-xs text-[var(--color-text-secondary)] px-2 py-1.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-1)]"
                           >
-                            {a.assetType}
-                          </span>
-                        </li>
-                      ))}
+                            <div className="flex flex-wrap gap-2 items-center">
+                              <span className="text-[var(--color-text-muted)] w-8">{a.sortOrder}</span>
+                              <span className="font-medium">{a.name}</span>
+                              <span className="text-[var(--color-text-muted)]">{a.slug}</span>
+                              <span
+                                className={cn(
+                                  'px-1 rounded',
+                                  a.assetType === 'graph'
+                                    ? 'bg-sky-400/10 text-sky-400'
+                                    : 'bg-violet-400/10 text-violet-400',
+                                )}
+                              >
+                                {a.assetType}
+                              </span>
+                            </div>
+                            <p className="mt-1 text-[var(--color-text-muted)]">
+                              {rows.length > 0
+                                ? `Media: ${rows.length} registo(s) · resolução: ${resolved.resolution}`
+                                : 'No media configured'}
+                              {rows.length === 0 && a.imageUrl && (
+                                <span className="text-amber-400/80">
+                                  {' '}
+                                  · fallback image_url no asset
+                                </span>
+                              )}
+                            </p>
+                          </li>
+                        );
+                      })}
                     </ul>
                   )}
                 </div>

@@ -1,7 +1,12 @@
 import type {
   MethodologyAsset,
+  MethodologyAssetMedia,
   MethodologyAssetType,
   MethodologyCatalogStatus,
+  MediaQualityStatus,
+  MediaSourceType,
+  MediaStorageProvider,
+  MediaType,
   MethodologyTool,
   MethodologyToolType,
   MethodologyUsageMode,
@@ -74,6 +79,25 @@ export type SpecialtySlugRow = {
   slug: string;
 };
 
+export type MethodologyAssetMediaRow = {
+  id: string;
+  asset_id: string;
+  specialty_id: string | null;
+  tool_id: string | null;
+  media_type: string;
+  url: string;
+  storage_provider: string;
+  source_type: string;
+  source_name: string | null;
+  alt_text: string | null;
+  caption: string | null;
+  quality_status: string;
+  is_primary: boolean;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+  updated_at: string;
+};
+
 function asRecord(value: unknown): Record<string, unknown> {
   if (value && typeof value === 'object' && !Array.isArray(value)) {
     return value as Record<string, unknown>;
@@ -138,6 +162,27 @@ export function mapSpecialtyToolLink(row: SpecialtyToolRow): SpecialtyToolLink {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     tool: mapMethodologyTool(toolRow),
+  };
+}
+
+export function mapMethodologyAssetMedia(row: MethodologyAssetMediaRow): MethodologyAssetMedia {
+  return {
+    id: row.id,
+    assetId: row.asset_id,
+    specialtyId: row.specialty_id ?? undefined,
+    toolId: row.tool_id ?? undefined,
+    mediaType: row.media_type as MediaType,
+    url: row.url,
+    storageProvider: row.storage_provider as MediaStorageProvider,
+    sourceType: row.source_type as MediaSourceType,
+    sourceName: row.source_name ?? undefined,
+    altText: row.alt_text ?? undefined,
+    caption: row.caption ?? undefined,
+    qualityStatus: row.quality_status as MediaQualityStatus,
+    isPrimary: row.is_primary,
+    metadata: asRecord(row.metadata),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
   };
 }
 

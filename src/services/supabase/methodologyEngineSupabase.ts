@@ -4,8 +4,10 @@ import { requireAuthUserId } from '@/lib/supabase/auth';
 import { wrapSupabaseError } from '@/lib/supabase/errors';
 import {
   mapMethodologyAsset,
+  mapMethodologyAssetMedia,
   mapSpecialtyAssetContent,
   mapSpecialtyToolLink,
+  type MethodologyAssetMediaRow,
   type MethodologyAssetRow,
   type SpecialtyAssetContentRow,
   type SpecialtySlugRow,
@@ -13,6 +15,7 @@ import {
 } from '@/lib/supabase/methodologyEngineMappers';
 import type {
   MethodologyAsset,
+  MethodologyAssetMedia,
   SpecialtyAssetContent,
   SpecialtyMethodologyContext,
   SpecialtyToolLink,
@@ -145,4 +148,66 @@ export async function supabaseGetSpecialtyAssetContent(
 
   const content = ((data ?? []) as SpecialtyAssetContentRow[]).map(mapSpecialtyAssetContent);
   return { context, content };
+}
+
+export async function supabaseGetSpecialtyAssetMedia(
+  specialtySlug: string,
+): Promise<{ context: SpecialtyMethodologyContext; media: MethodologyAssetMedia[] }> {
+  const client = requireSupabaseClient();
+  await requireAuthUserId(client);
+
+  const { context, assets } = await supabaseGetSpecialtyAssets(specialtySlug);
+  const assetIds = assets.map(a => a.id);
+
+  if (assetIds.length === 0) {
+    return { context, media: [] };
+  }
+
+  const { data, error } = await client
+    .from('methodology_asset_media')
+    .select('*')
+    .in('asset_id', assetIds)
+    .order('is_primary', { ascending: false })
+    .order('created_at');
+
+  if (error) mapRlsError('getSpecialtyAssetMedia', error);
+
+  const media = ((data ?? []) as MethodologyAssetMediaRow[]).map(mapMethodologyAssetMedia);
+  return { context, media };
+}
+
+export async function supabaseGetAssetMediaByAssetId(
+  assetId: string,
+): Promise<MethodologyAssetMedia[]> {
+  const client = requireSupabaseClient();
+  await requireAuthUserId(client);
+
+  const { data, error } = await client
+    .from('methodology_asset_media')
+    .select('*')
+    .eq('asset_id', assetId)
+    .order('is_primary', { ascending: false })
+    .order('created_at');
+
+  if (error) mapRlsError('getAssetMediaByAssetId', error);
+
+  return ((data ?? []) as MethodologyAssetMediaRow[]).map(mapMethodologyAssetMedia);
+}
+
+export async function supabaseGetMethodologyAssetById(
+  assetId: string,
+): Promise<MethodologyAsset | null> {
+  const client = requireSupabaseClient();
+  await requireAuthUserId(client);
+
+  const { data, error } = await client
+    .from('methodology_assets')
+    .select('*')
+    .eq('id', assetId)
+    .maybeSingle();
+
+  if (error) mapRlsError('getMethodologyAssetById', error);
+  if (!data) return null;
+
+  return mapMethodologyAsset(data as MethodologyAssetRow);
 }

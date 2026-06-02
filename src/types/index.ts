@@ -451,6 +451,7 @@ export interface ReportV2 extends Report {
 export type {
   MethodologyTool,
   MethodologyAsset,
+  MethodologyAssetMedia,
   SpecialtyToolLink,
   SpecialtyAssetContent,
   SpecialtyMethodologyContext,
@@ -458,4 +459,8 @@ export type {
   MethodologyAssetType,
   MethodologyUsageMode,
   MethodologyCatalogStatus,
+  MediaType,
+  MediaStorageProvider,
+  MediaSourceType,
+  MediaQualityStatus,
 } from '@/types/methodology-engine';

@@ -79,3 +79,42 @@ export interface SpecialtyMethodologyContext {
   specialtySlug: string;
   specialtyName: string;
 }
+
+export type MediaType = 'image' | 'pdf' | 'audio' | 'video' | 'document' | 'other';
+
+export type MediaStorageProvider = 'bunny' | 'supabase' | 'external' | 'app_public' | 'other';
+
+export type MediaSourceType =
+  | 'app_default'
+  | 'teacher_original'
+  | 'course_material'
+  | 'generated'
+  | 'custom_upload'
+  | 'fallback';
+
+export type MediaQualityStatus =
+  | 'approved'
+  | 'needs_review'
+  | 'low_quality'
+  | 'replaced'
+  | 'deprecated';
+
+/** Contextual media row — methodology_assets.image_url remains legacy fallback only. */
+export interface MethodologyAssetMedia {
+  id: string;
+  assetId: string;
+  specialtyId?: string;
+  toolId?: string;
+  mediaType: MediaType;
+  url: string;
+  storageProvider: MediaStorageProvider;
+  sourceType: MediaSourceType;
+  sourceName?: string;
+  altText?: string;
+  caption?: string;
+  qualityStatus: MediaQualityStatus;
+  isPrimary: boolean;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
