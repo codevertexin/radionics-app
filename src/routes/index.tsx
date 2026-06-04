@@ -23,6 +23,14 @@ import ProfilePage from '@/pages/ProfilePage';
 import LoginPage from '@/pages/auth/LoginPage';
 import MethodologyDebugPage from '@/pages/methodology/MethodologyDebugPage';
 import { MethodologyDebugGate } from '@/components/methodology/MethodologyDebugGate';
+import ResourcesHomePage from '@/pages/resources/ResourcesHomePage';
+import ResourceSpecialtyLayout, { ResourceSpecialtyIndexRedirect } from '@/pages/resources/ResourceSpecialtyLayout';
+import ResourceAssetsPage from '@/pages/resources/ResourceAssetsPage';
+import ResourceAssetDetailPage from '@/pages/resources/ResourceAssetDetailPage';
+import ResourceProtocolsPage from '@/pages/resources/ResourceProtocolsPage';
+import ResourceProtocolDetailPage from '@/pages/resources/ResourceProtocolDetailPage';
+import ResourceActivationsPage from '@/pages/resources/ResourceActivationsPage';
+import ResourceMaterialsPage from '@/pages/resources/ResourceMaterialsPage';
 
 function WithLayout({ children }: { children: React.ReactNode }) {
   return <AppLayout>{children}</AppLayout>;
@@ -59,6 +67,16 @@ export function AppRoutes() {
       <Route path="/methodologies" element={<Navigate to="/specialties" replace />} />
       <Route path="/certifications" element={<ProtectedWithLayout><CertificationsPage /></ProtectedWithLayout>} />
       <Route path="/profile" element={<ProtectedWithLayout><ProfilePage /></ProtectedWithLayout>} />
+      <Route path="/resources" element={<ProtectedWithLayout><ResourcesHomePage /></ProtectedWithLayout>} />
+      <Route path="/resources/:specialtySlug" element={<ProtectedWithLayout><ResourceSpecialtyLayout /></ProtectedWithLayout>}>
+        <Route index element={<ResourceSpecialtyIndexRedirect />} />
+        <Route path="assets" element={<ResourceAssetsPage />} />
+        <Route path="assets/:assetSlug" element={<ResourceAssetDetailPage />} />
+        <Route path="protocols" element={<ResourceProtocolsPage />} />
+        <Route path="protocols/:protocolSlug" element={<ResourceProtocolDetailPage />} />
+        <Route path="activations" element={<ResourceActivationsPage />} />
+        <Route path="materials" element={<ResourceMaterialsPage />} />
+      </Route>
       <Route
         path="/methodology-debug/:specialtySlug"
         element={

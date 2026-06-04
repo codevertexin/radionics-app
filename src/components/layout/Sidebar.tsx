@@ -1,7 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Calendar, Users, FileText, BookOpen,
-  Layers, User, ChevronLeft, ChevronRight, Zap, X, Award, LogOut,
+  Layers, User, ChevronLeft, ChevronRight, Zap, X, Award, LogOut, Library,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { METHODOLOGIES } from '@/data/mock-data';
@@ -16,6 +16,7 @@ const NAV_ITEMS = [
   { to: '/clients', icon: Users, label: 'Clientes', badge: 0 },
   { to: '/reports', icon: FileText, label: 'Relatórios', badge: 0 },
   { to: '/templates', icon: Layers, label: 'Templates', badge: 0 },
+  { to: '/resources', icon: Library, label: 'Recursos', badge: 0 },
   { to: '/specialties', icon: BookOpen, label: 'Especialidades', badge: 0 },
   { to: '/certifications', icon: Award, label: 'Especialidades e Certs', badge: pendingCerts },
 ];

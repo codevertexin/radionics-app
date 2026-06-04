@@ -33,6 +33,9 @@ export type MethodologyAssetRow = {
   name: string;
   slug: string;
   code: string | null;
+  canonical_name: string | null;
+  original_name: string | null;
+  aliases: string[] | null;
   asset_type: string;
   usage_mode: string;
   base_description: string | null;
@@ -127,6 +130,9 @@ export function mapMethodologyAsset(row: MethodologyAssetRow): MethodologyAsset 
     name: row.name,
     slug: row.slug,
     code: row.code ?? undefined,
+    canonicalName: row.canonical_name ?? undefined,
+    originalName: row.original_name ?? undefined,
+    aliases: row.aliases ?? [],
     assetType: row.asset_type as MethodologyAssetType,
     usageMode: row.usage_mode as MethodologyUsageMode,
     baseDescription: row.base_description ?? undefined,

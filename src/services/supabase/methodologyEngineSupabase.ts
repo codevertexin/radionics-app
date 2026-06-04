@@ -21,7 +21,7 @@ import type {
   SpecialtyToolLink,
 } from '@/types';
 
-async function resolveSpecialtyBySlug(slug: string): Promise<SpecialtyMethodologyContext> {
+export async function resolveSpecialtyBySlug(slug: string): Promise<SpecialtyMethodologyContext> {
   const client = requireSupabaseClient();
 
   const { data, error } = await client

@@ -274,12 +274,13 @@ export const CERTIFICATIONS: Certification[] = [
     id: 'cert-spec-002',
     therapistId: 'therapist-001',
     specialtyId: 'spec-rad35',
-    status: 'pending',
+    status: 'approved',
     yearsOfExperience: 1,
     trainingInstitution: 'Escola de Radiônica do Porto',
     trainingCompletedDate: '2025-04-28',
-    notes: 'Aguarda validação do certificado de conclusão do curso.',
+    notes: 'Certificação Mesa 35 aprovada.',
     submittedAt: '2025-05-15T09:00:00Z',
+    reviewedAt: '2025-05-20T10:00:00Z',
     documents: [
       {
         id: 'cdoc-003',
@@ -291,6 +292,19 @@ export const CERTIFICATIONS: Certification[] = [
         uploadedAt: '2025-05-15T09:00:00Z',
       },
     ],
+  },
+  {
+    id: 'cert-spec-003',
+    therapistId: 'therapist-001',
+    specialtyId: 'spec-rad49',
+    status: 'approved',
+    yearsOfExperience: 2,
+    trainingInstitution: 'Escola de Radiônica do Porto',
+    trainingCompletedDate: '2024-06-15',
+    notes: 'Certificação Mesa 49 — símbolos angelicais.',
+    submittedAt: '2024-07-01T09:00:00Z',
+    reviewedAt: '2024-07-10T14:00:00Z',
+    documents: [],
   },
 ];
 

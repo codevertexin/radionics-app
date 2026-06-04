@@ -34,6 +34,9 @@ export interface MethodologyAsset {
   name: string;
   slug: string;
   code?: string;
+  canonicalName?: string;
+  originalName?: string;
+  aliases: string[];
   assetType: MethodologyAssetType;
   usageMode: MethodologyUsageMode;
   baseDescription?: string;
@@ -43,6 +46,100 @@ export interface MethodologyAsset {
   sortOrder: number;
   createdAt: string;
   updatedAt: string;
+}
+
+export type MethodologyProtocolStatus = 'active' | 'inactive' | 'draft' | 'archived';
+
+export interface MethodologyProtocol {
+  id: string;
+  specialtyId: string;
+  code: string;
+  name: string;
+  slug: string;
+  description?: string;
+  whyActivate?: string;
+  status: MethodologyProtocolStatus;
+  sortOrder: number;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProtocolStep {
+  id: string;
+  protocolId: string;
+  stepNumber: number;
+  title: string;
+  instructions?: string;
+  activationText?: string;
+  metadata: Record<string, unknown>;
+}
+
+export interface ProtocolAssetLink {
+  id: string;
+  protocolId: string;
+  assetId: string;
+  assetRole: string;
+  sortOrder: number;
+  notes?: string;
+  asset: MethodologyAsset;
+}
+
+export interface MethodologyProtocolDetail extends MethodologyProtocol {
+  steps: ProtocolStep[];
+  assets: ProtocolAssetLink[];
+}
+
+export type ActivationScriptType =
+  | 'activation' | 'deactivation' | 'prayer' | 'decree' | 'visualization'
+  | 'instruction' | 'opening' | 'closing' | 'protection' | 'other';
+
+export interface ActivationScriptResource {
+  id: string;
+  name: string;
+  slug: string;
+  scriptType: ActivationScriptType;
+  content: string;
+  assetId?: string;
+  assetName?: string;
+  assetSlug?: string;
+  assetType?: MethodologyAssetType;
+  sortOrder: number;
+}
+
+/** Asset enriched for the Resources browse/detail UI. */
+export interface ResourceAssetView extends MethodologyAsset {
+  content?: SpecialtyAssetContent;
+  imageUrlResolved?: string;
+  toolName?: string;
+  toolSlug?: string;
+  relatedProtocolSlugs?: string[];
+}
+
+export interface SpecialtyResourceSummary {
+  specialtyId: string;
+  specialtySlug: string;
+  specialtyName: string;
+  toolCount: number;
+  assetCount: number;
+  protocolCount: number;
+  activationCount: number;
+}
+
+export type ResourceSearchField = 'name' | 'canonical_name' | 'original_name' | 'aliases';
+
+export type ResourceSearchResultKind = 'asset' | 'protocol' | 'activation';
+
+export interface ResourceSearchResult {
+  kind: ResourceSearchResultKind;
+  specialtySlug: string;
+  specialtyName: string;
+  id: string;
+  slug: string;
+  name: string;
+  matchedField: ResourceSearchField | 'content';
+  subtitle?: string;
+  assetType?: MethodologyAssetType;
 }
 
 export interface SpecialtyToolLink {

@@ -3,6 +3,7 @@
  */
 
 import { HAWKINS_LEVELS, SPECIALTIES, TOOLS_RAD35 } from '@/data/mock-data';
+import { MOCK_CHAKRA_ASSETS, MOCK_CHAKRA_CONTENT } from '@/lib/resources/mockResourceLibraryData';
 import type {
   MethodologyAsset,
   MethodologyAssetMedia,
@@ -125,6 +126,8 @@ export const MOCK_MESA35_GRAPH_ASSETS: MethodologyAsset[] = TOOLS_RAD35.map((t, 
     name: t.name,
     slug,
     code: `g0${i + 1}`,
+    canonicalName: t.name,
+    aliases: [],
     assetType: 'graph' as const,
     usageMode: 'activation' as const,
     baseDescription: GRAPH_BASE_DESCRIPTIONS[slug] ?? t.description,
@@ -143,6 +146,8 @@ export const MOCK_MESA35_HAWKINS_ASSETS: MethodologyAsset[] = HAWKINS_LEVELS.map
   name: `${h.value} ${h.label}`,
   slug: hawkinsSlug(h.value, h.label),
   code: String(h.value),
+  canonicalName: `${h.value} ${h.label}`,
+  aliases: [],
   assetType: 'hawkins_level' as const,
   usageMode: 'measurement' as const,
   baseDescription: h.description,
@@ -222,11 +227,11 @@ export function getMockMesa35Tools(): SpecialtyToolLink[] {
 }
 
 export function getMockMesa35Assets(): MethodologyAsset[] {
-  return [...MOCK_MESA35_GRAPH_ASSETS, ...MOCK_MESA35_HAWKINS_ASSETS].map(a => ({ ...a }));
+  return [...MOCK_MESA35_GRAPH_ASSETS, ...MOCK_MESA35_HAWKINS_ASSETS, ...MOCK_CHAKRA_ASSETS].map(a => ({ ...a }));
 }
 
 export function getMockMesa35AssetContent(): SpecialtyAssetContent[] {
-  return MOCK_MESA35_ASSET_CONTENT.map(c => ({ ...c }));
+  return [...MOCK_MESA35_ASSET_CONTENT, ...MOCK_CHAKRA_CONTENT].map(c => ({ ...c }));
 }
 
 /** V2.4 — no seeded media URLs in mock (parity with empty Supabase table). */
