@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { ChevronRight, Loader2 } from 'lucide-react';
 import { getDataMode } from '@/lib/dataMode';
 import { ResourceBackLink } from '@/components/resources/ResourceBackLink';
-import { ResourceGraphPrintButton } from '@/components/resources/ResourceGraphPrintButton';
+import { ResourceGraphPdfButton } from '@/components/resources/ResourceGraphPdfButton';
 import { getAssetResourceDetail, getSpecialtyProtocolDetail } from '@/services/resourceLibraryService';
 import { cn } from '@/lib/utils';
 
@@ -106,9 +106,11 @@ export default function ResourceAssetDetailPage() {
             )}
             {isGraph && (
               <div className="pt-2">
-                <ResourceGraphPrintButton
+                <ResourceGraphPdfButton
                   specialtySlug={specialtySlug!}
                   assetSlug={asset.slug}
+                  asset={asset}
+                  showPreviewLink
                 />
               </div>
             )}

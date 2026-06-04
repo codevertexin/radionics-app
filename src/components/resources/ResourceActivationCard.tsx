@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import type { ActivationScriptResource } from '@/types';
 import { ResourceActivationImage } from '@/components/resources/ResourceActivationImage';
-import { ResourceGraphPrintButton } from '@/components/resources/ResourceGraphPrintButton';
+import { ResourceGraphPdfButton } from '@/components/resources/ResourceGraphPdfButton';
 
 interface ResourceActivationCardProps {
   script: ActivationScriptResource;
@@ -31,7 +31,7 @@ export function ResourceActivationCard({ script, specialtySlug }: ResourceActiva
               </Link>
             )}
             {isGraph && script.assetSlug && (
-              <ResourceGraphPrintButton
+              <ResourceGraphPdfButton
                 specialtySlug={specialtySlug}
                 assetSlug={script.assetSlug}
                 variant="inline"
