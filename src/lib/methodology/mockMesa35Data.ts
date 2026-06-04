@@ -3,7 +3,6 @@
  */
 
 import { HAWKINS_LEVELS, SPECIALTIES, TOOLS_RAD35 } from '@/data/mock-data';
-import { MOCK_CHAKRA_ASSETS, MOCK_CHAKRA_CONTENT } from '@/lib/resources/mockResourceLibraryData';
 import type {
   MethodologyAsset,
   MethodologyAssetMedia,
@@ -154,6 +153,60 @@ export const MOCK_MESA35_HAWKINS_ASSETS: MethodologyAsset[] = HAWKINS_LEVELS.map
   metadata: { color: h.color, bgColor: h.bgColor },
   status: 'active' as const,
   sortOrder: h.value,
+  createdAt: NOW,
+  updatedAt: NOW,
+}));
+
+export const MOCK_CHAKRA_ASSETS: MethodologyAsset[] = [
+  {
+    id: 'mock-asset-chakra-basico',
+    toolId: MOCK_TOOL_CHAKRA_ID,
+    name: 'Chakra Básico',
+    slug: 'chakra-basico',
+    canonicalName: 'Chakra Básico',
+    originalName: 'Muladhara',
+    aliases: ['Chakra Raiz', 'Muladhara'],
+    assetType: 'chakra',
+    usageMode: 'activation',
+    baseDescription: 'Chakra da base da coluna — segurança, sobrevivência e enraizamento.',
+    imageUrl: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400&q=80',
+    metadata: { color: 'Vermelho', element: 'Terra', location: 'Base da coluna' },
+    status: 'active',
+    sortOrder: 1,
+    createdAt: NOW,
+    updatedAt: NOW,
+  },
+  {
+    id: 'mock-asset-chakra-frontal',
+    toolId: MOCK_TOOL_CHAKRA_ID,
+    name: 'Chakra Frontal',
+    slug: 'chakra-frontal',
+    canonicalName: 'Chakra Frontal',
+    originalName: 'Ajna',
+    aliases: ['Terceiro Olho', 'Ajna'],
+    assetType: 'chakra',
+    usageMode: 'activation',
+    baseDescription: 'Chakra do terceiro olho — intuição, visão interior e clareza mental.',
+    imageUrl: 'https://images.unsplash.com/photo-1519681393784-d120267933ba?w=400&q=80',
+    metadata: { color: 'Índigo', element: 'Luz', location: 'Entre as sobrancelhas' },
+    status: 'active',
+    sortOrder: 6,
+    createdAt: NOW,
+    updatedAt: NOW,
+  },
+];
+
+export const MOCK_CHAKRA_CONTENT: SpecialtyAssetContent[] = MOCK_CHAKRA_ASSETS.map(asset => ({
+  id: `mock-sac-${asset.slug}`,
+  specialtyId: MOCK_SPECIALTY_ID,
+  assetId: asset.id,
+  title: asset.name,
+  therapistExplanation: asset.baseDescription,
+  clientExplanation: `Equilíbrio do ${asset.name.toLowerCase()} para maior harmonia energética.`,
+  activationText: `Visualize luz ${(asset.metadata.color as string)?.toLowerCase() ?? 'dourada'} no centro ${asset.originalName ?? asset.name}.`,
+  recommendedUse: 'Quando há desequilíbrio energético neste centro.',
+  metadata: asset.metadata,
+  sortOrder: asset.sortOrder,
   createdAt: NOW,
   updatedAt: NOW,
 }));

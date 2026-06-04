@@ -1,18 +1,16 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Link, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { getDataMode } from '@/lib/dataMode';
-import { matchActivationSearch } from '@/lib/resources/resourceSearch';
-import { getSpecialtyActivationScripts } from '@/services/resourceLibraryService';
+import { filterResourcesDisplayActivations } from '@/lib/resources/resourceFilters';
+import {
+  getSpecialtyActivationScripts,
+  groupActivationsByTool,
+} from '@/services/resourceLibraryService';
 import { ResourceSearchBox } from '@/components/resources/ResourceSearchBox';
-
-const TYPE_LABELS: Record<string, string> = {
-  graph: 'Gráficos',
-  angel: 'Anjos',
-  archangel: 'Arcanjos',
-  chakra: 'Chakras',
-};
+import { ResourceActivationCard } from '@/components/resources/ResourceActivationCard';
+import { matchActivationSearch } from '@/lib/resources/resourceSearch';
 
 export default function ResourceActivationsPage() {
   const { specialtySlug } = useParams<{ specialtySlug: string }>();
@@ -25,22 +23,13 @@ export default function ResourceActivationsPage() {
   });
 
   const filtered = useMemo(() => {
-    if (!scripts) return [];
+    const visible = filterResourcesDisplayActivations(scripts ?? []);
     const q = query.trim();
-    if (!q) return scripts;
-    return scripts.filter(s => matchActivationSearch(q, s));
+    if (!q) return visible;
+    return visible.filter(s => matchActivationSearch(q, s));
   }, [scripts, query]);
 
-  const grouped = useMemo(() => {
-    const groups = new Map<string, typeof filtered>();
-    for (const script of filtered) {
-      const key = script.assetType ?? 'other';
-      const list = groups.get(key) ?? [];
-      list.push(script);
-      groups.set(key, list);
-    }
-    return groups;
-  }, [filtered]);
+  const groups = useMemo(() => groupActivationsByTool(filtered), [filtered]);
 
   if (isLoading) {
     return (
@@ -51,7 +40,7 @@ export default function ResourceActivationsPage() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-8">
       <ResourceSearchBox
         value={query}
         onChange={setQuery}
@@ -63,29 +52,21 @@ export default function ResourceActivationsPage() {
           {scripts?.length ? `Nenhuma ativação para "${query}".` : 'Nenhuma ativação disponível.'}
         </p>
       ) : (
-        [...grouped.entries()].map(([type, items]) => (
-          <section key={type}>
-            <h2 className="text-xs uppercase tracking-wide text-[var(--color-text-muted)] mb-3">
-              {TYPE_LABELS[type] ?? type}
+        groups.map(group => (
+          <section key={group.groupKey}>
+            <h2 className="font-cinzel text-sm font-semibold text-[var(--color-text-primary)] mb-4">
+              {group.label}
+              <span className="ml-2 text-xs font-normal text-[var(--color-text-muted)]">
+                ({group.items.length})
+              </span>
             </h2>
-            <div className="space-y-3">
-              {items.map(script => (
-                <article
+            <div className="space-y-4">
+              {group.items.map(script => (
+                <ResourceActivationCard
                   key={script.id}
-                  className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface-0)] p-5"
-                >
-                  <div className="flex items-start justify-between gap-3 mb-2">
-                    <h3 className="font-medium text-sm text-[var(--color-text-primary)]">{script.name}</h3>
-                    {script.assetName && (
-                      <span className="text-[10px] text-[var(--color-text-muted)] shrink-0">
-                        {script.assetName}
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-sm text-[var(--color-text-secondary)] leading-relaxed whitespace-pre-wrap">
-                    {script.content}
-                  </p>
-                </article>
+                  script={script}
+                  specialtySlug={specialtySlug!}
+                />
               ))}
             </div>
           </section>

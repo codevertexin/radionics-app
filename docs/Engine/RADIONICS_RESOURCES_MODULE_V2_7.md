@@ -79,6 +79,41 @@ npm run build
 npm run lint
 ```
 
-## Fora de scope
+## V2.7 UX polish (fecho)
 
-Workspace, sessões, relatórios, AI, execução de protocolos, booking, gestão de clientes.
+### Hawkins
+- Níveis individuais da escala Hawkins **não aparecem** como cards em Recursos (`hawkins-scale` / `asset_type = hawkins_level`).
+- Dados permanecem na metodologia para sessões e workflows.
+- Futuro: um único media asset «Escala de Hawkins» / «Biômetro Hawkins».
+
+### Therapist UI
+- Link retroceder: **← Voltar** (detalhe de asset, protocolo).
+- Ativações: só título = nome do asset; sem `sourceName` / `sourceReference` / nome duplicado do script.
+- Imagens de ativação: moldura quadrada, `object-fit: contain`, fundo neutro.
+
+### Impressão de gráficos
+- Rota: `/resources/:specialtySlug/assets/:assetSlug/print` (sem sidebar; `window.print()`).
+- Botão **Imprimir** no detalhe do asset e nas ativações (`asset_type = graph`).
+- A4 retrato: título, gráfico centrado, sem texto de ativação.
+
+## V2.7 UX — Agrupamento e pesquisa
+
+### Assets (`/resources/:slug/assets`)
+- Agrupamento por `methodology_tools.slug`: Gráficos, Chakras, Anjos/Arcanjos, Hawkins
+- Filtro secundário por grupo (chips)
+- Cards: imagem, nome, `original_name`, aliases, preview de `activation_text`
+
+### Ativações
+- Agrupamento: Gráficos, Anjos, Arcanjos, Chakras
+- Layout com imagem do asset + texto + proveniência
+
+### Protocolos
+- `searchProtocols()` — nome, description, why_activate, assets ligados (nome/aliases/original_name)
+
+### Tabs
+- Ocultas quando count = 0; mensagem se todos zero
+
+### Helpers
+- `src/lib/resources/resourceGrouping.ts` — `groupAssetsByTool`, `groupActivationsByTool`
+- `src/lib/resources/protocolSearch.ts` — `searchProtocols`, `matchProtocolWithAssets`
+

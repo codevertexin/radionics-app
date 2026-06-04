@@ -1,24 +1,34 @@
 import { Link, useLocation, useParams } from 'react-router-dom';
 import { cn } from '@/lib/utils';
+import type { SpecialtyResourceSummary } from '@/types';
 
-const TABS = [
-  { key: 'assets', label: 'Assets' },
-  { key: 'protocols', label: 'Protocolos' },
-  { key: 'activations', label: 'Ativações' },
-  { key: 'materials', label: 'Materiais' },
+const ALL_TABS = [
+  { key: 'assets', label: 'Assets', countKey: 'assetCount' as const },
+  { key: 'protocols', label: 'Protocolos', countKey: 'protocolCount' as const },
+  { key: 'activations', label: 'Ativações', countKey: 'activationCount' as const },
+  { key: 'materials', label: 'Materiais', countKey: 'materialCount' as const },
 ] as const;
 
-export function ResourceSpecialtyTabs() {
+interface ResourceSpecialtyTabsProps {
+  summary: SpecialtyResourceSummary;
+}
+
+/** Tabs must receive summary via props — sibling of <Outlet>, not a child route. */
+export function ResourceSpecialtyTabs({ summary }: ResourceSpecialtyTabsProps) {
   const { specialtySlug } = useParams<{ specialtySlug: string }>();
   const location = useLocation();
 
   if (!specialtySlug) return null;
 
-  const activeTab = TABS.find(t => location.pathname.includes(`/${t.key}`))?.key ?? 'assets';
+  const visibleTabs = ALL_TABS.filter(tab => summary[tab.countKey] > 0);
+  if (visibleTabs.length === 0) return null;
+
+  const activeTab = visibleTabs.find(t => location.pathname.includes(`/${t.key}`))?.key
+    ?? visibleTabs[0].key;
 
   return (
     <div className="flex flex-wrap gap-1 border-b border-[var(--color-border)] px-6">
-      {TABS.map(tab => (
+      {visibleTabs.map(tab => (
         <Link
           key={tab.key}
           to={`/resources/${specialtySlug}/${tab.key}`}
@@ -30,6 +40,7 @@ export function ResourceSpecialtyTabs() {
           )}
         >
           {tab.label}
+          <span className="ml-1.5 text-[10px] opacity-60">({summary[tab.countKey]})</span>
         </Link>
       ))}
     </div>

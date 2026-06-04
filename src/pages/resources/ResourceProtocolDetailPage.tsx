@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { getDataMode } from '@/lib/dataMode';
+import { ResourceBackLink } from '@/components/resources/ResourceBackLink';
 import { getSpecialtyProtocolDetail } from '@/services/resourceLibraryService';
 
 const ROLE_LABELS: Record<string, string> = {
@@ -44,12 +45,7 @@ export default function ResourceProtocolDetailPage() {
 
   return (
     <div className="p-6 max-w-3xl mx-auto space-y-6">
-      <Link
-        to={`/resources/${specialtySlug}/protocols`}
-        className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-gold)]"
-      >
-        ← Protocolos
-      </Link>
+      <ResourceBackLink fallbackTo={`/resources/${specialtySlug}/protocols`} />
 
       <div>
         <span className="text-xs font-bold text-violet-300 bg-violet-500/10 border border-violet-500/20 px-2 py-0.5 rounded">

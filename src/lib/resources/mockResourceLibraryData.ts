@@ -4,69 +4,14 @@
 
 import type {
   ActivationScriptResource,
-  MethodologyAsset,
   MethodologyProtocol,
   MethodologyProtocolDetail,
-  SpecialtyAssetContent,
+  ProtocolAssetLink,
 } from '@/types';
+import type { ProtocolWithLinkedAssets } from '@/lib/resources/protocolSearch';
 
 const NOW = '2024-01-01T00:00:00.000Z';
-const MOCK_SPECIALTY_MESA35 = 'spec-rad35';
 const MOCK_SPECIALTY_MESA49 = 'spec-rad49';
-
-export const MOCK_CHAKRA_ASSETS: MethodologyAsset[] = [
-  {
-    id: 'mock-asset-chakra-basico',
-    toolId: 'mock-tool-chakra-set',
-    name: 'Chakra Básico',
-    slug: 'chakra-basico',
-    canonicalName: 'Chakra Básico',
-    originalName: 'Muladhara',
-    aliases: ['Chakra Raiz', 'Muladhara'],
-    assetType: 'chakra',
-    usageMode: 'activation',
-    baseDescription: 'Chakra da base da coluna — segurança, sobrevivência e enraizamento.',
-    imageUrl: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400&q=80',
-    metadata: { color: 'Vermelho', element: 'Terra', location: 'Base da coluna' },
-    status: 'active',
-    sortOrder: 1,
-    createdAt: NOW,
-    updatedAt: NOW,
-  },
-  {
-    id: 'mock-asset-chakra-frontal',
-    toolId: 'mock-tool-chakra-set',
-    name: 'Chakra Frontal',
-    slug: 'chakra-frontal',
-    canonicalName: 'Chakra Frontal',
-    originalName: 'Ajna',
-    aliases: ['Terceiro Olho', 'Ajna'],
-    assetType: 'chakra',
-    usageMode: 'activation',
-    baseDescription: 'Chakra do terceiro olho — intuição, visão interior e clareza mental.',
-    imageUrl: 'https://images.unsplash.com/photo-1519681393784-d120267933ba?w=400&q=80',
-    metadata: { color: 'Índigo', element: 'Luz', location: 'Entre as sobrancelhas' },
-    status: 'active',
-    sortOrder: 6,
-    createdAt: NOW,
-    updatedAt: NOW,
-  },
-];
-
-export const MOCK_CHAKRA_CONTENT: SpecialtyAssetContent[] = MOCK_CHAKRA_ASSETS.map(asset => ({
-  id: `mock-sac-${asset.slug}`,
-  specialtyId: MOCK_SPECIALTY_MESA35,
-  assetId: asset.id,
-  title: asset.name,
-  therapistExplanation: asset.baseDescription,
-  clientExplanation: `Equilíbrio do ${asset.name.toLowerCase()} para maior harmonia energética.`,
-  activationText: `Visualize luz ${(asset.metadata.color as string)?.toLowerCase() ?? 'dourada'} no centro ${asset.originalName ?? asset.name}.`,
-  recommendedUse: 'Quando há desequilíbrio energético neste centro.',
-  metadata: asset.metadata,
-  sortOrder: asset.sortOrder,
-  createdAt: NOW,
-  updatedAt: NOW,
-}));
 
 export const MOCK_MESA49_PROTOCOL: MethodologyProtocolDetail = {
   id: 'mock-protocol-prosperidade',
@@ -101,7 +46,77 @@ export const MOCK_MESA49_PROTOCOL: MethodologyProtocolDetail = {
       metadata: {},
     },
   ],
-  assets: [],
+  assets: [
+    {
+      id: 'mock-pa-1',
+      protocolId: 'mock-protocol-prosperidade',
+      assetId: 'mock-asset-prosperidade-angel',
+      assetRole: 'angel',
+      sortOrder: 1,
+      notes: '• (15) Prosperidade',
+      asset: {
+        id: 'mock-asset-prosperidade-angel',
+        toolId: 'mock-tool-angel',
+        name: 'Prosperidade',
+        slug: 'angel-prosperity',
+        canonicalName: 'Prosperidade',
+        aliases: ['Anjo da Prosperidade'],
+        assetType: 'angel',
+        usageMode: 'activation',
+        metadata: {},
+        status: 'active',
+        sortOrder: 15,
+        createdAt: NOW,
+        updatedAt: NOW,
+      },
+    },
+    {
+      id: 'mock-pa-2',
+      protocolId: 'mock-protocol-prosperidade',
+      assetId: 'mock-asset-prosperador',
+      assetRole: 'graph',
+      sortOrder: 6,
+      notes: '• (27) Prosperador',
+      asset: {
+        id: 'mock-asset-prosperador',
+        toolId: 'mock-tool-graph',
+        name: 'Prosperador',
+        slug: 'prosperador',
+        canonicalName: 'Prosperador',
+        aliases: [],
+        assetType: 'graph',
+        usageMode: 'activation',
+        metadata: {},
+        status: 'active',
+        sortOrder: 27,
+        createdAt: NOW,
+        updatedAt: NOW,
+      },
+    },
+    {
+      id: 'mock-pa-3',
+      protocolId: 'mock-protocol-prosperidade',
+      assetId: 'mock-asset-saude-financeira',
+      assetRole: 'graph',
+      sortOrder: 7,
+      notes: '• (9) Saúde Financeira',
+      asset: {
+        id: 'mock-asset-saude-financeira',
+        toolId: 'mock-tool-graph',
+        name: 'Saúde Financeira',
+        slug: 'saude-financeira',
+        canonicalName: 'Saúde Financeira',
+        aliases: [],
+        assetType: 'graph',
+        usageMode: 'activation',
+        metadata: {},
+        status: 'active',
+        sortOrder: 9,
+        createdAt: NOW,
+        updatedAt: NOW,
+      },
+    },
+  ] as ProtocolAssetLink[],
 };
 
 export const MOCK_ACTIVATION_SCRIPTS: ActivationScriptResource[] = [
@@ -115,6 +130,9 @@ export const MOCK_ACTIVATION_SCRIPTS: ActivationScriptResource[] = [
     assetName: 'Luxor',
     assetSlug: 'luxor',
     assetType: 'graph',
+    toolSlug: 'graph-set-35',
+    sourceName: 'Vanessa',
+    sourceReference: 'docs/knowledge/vanessa/GRAFICOS MESA.txt',
     sortOrder: 1,
   },
   {
@@ -127,18 +145,28 @@ export const MOCK_ACTIVATION_SCRIPTS: ActivationScriptResource[] = [
     assetName: 'Chakra Básico',
     assetSlug: 'chakra-basico',
     assetType: 'chakra',
+    toolSlug: 'chakra-set',
+    sourceName: 'Vanessa',
+    sourceReference: 'docs/knowledge/vanessa/Chakra.txt',
     sortOrder: 2,
   },
 ];
 
+export function getMockProtocolsWithLinkedAssets(slug: string): ProtocolWithLinkedAssets[] {
+  if (slug !== 'mesa-49') return [];
+  const { steps, ...protocol } = MOCK_MESA49_PROTOCOL;
+  void steps;
+  return [{
+    ...protocol,
+    linkedAssets: MOCK_MESA49_PROTOCOL.assets.map(pa => pa.asset),
+  }];
+}
+
 export function getMockProtocolsForSpecialty(slug: string): MethodologyProtocol[] {
-  if (slug === 'mesa-49') {
-    const { steps, assets, ...protocol } = MOCK_MESA49_PROTOCOL;
-    void steps;
-    void assets;
-    return [protocol];
-  }
-  return [];
+  return getMockProtocolsWithLinkedAssets(slug).map(({ linkedAssets: _la, ...p }) => {
+    void _la;
+    return p;
+  });
 }
 
 export function getMockProtocolDetail(

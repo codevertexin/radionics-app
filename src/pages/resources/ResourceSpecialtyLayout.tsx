@@ -3,8 +3,12 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import { getDataMode } from '@/lib/dataMode';
-import { isMethodologyEngineError } from '@/services/resourceLibraryService';
-import { getSpecialtyResources } from '@/services/resourceLibraryService';
+import {
+  getDefaultResourceTab,
+  getSpecialtyResources,
+  hasAnyResourceContent,
+  isMethodologyEngineError,
+} from '@/services/resourceLibraryService';
 import { CertificationRequired } from '@/components/resources/CertificationRequired';
 import { ResourceSpecialtyTabs } from '@/components/resources/ResourceSpecialtyTabs';
 
@@ -15,6 +19,8 @@ export default function ResourceSpecialtyLayout() {
     queryKey: ['resource-specialty', specialtySlug, getDataMode()],
     queryFn: () => getSpecialtyResources(specialtySlug!),
     enabled: Boolean(specialtySlug),
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
   });
 
   if (isLoading) {
@@ -33,6 +39,8 @@ export default function ResourceSpecialtyLayout() {
     return <CertificationRequired specialtyName={specialtySlug} />;
   }
 
+  const hasContent = hasAnyResourceContent(summary);
+
   return (
     <div className="min-h-full bg-[var(--color-void)]">
       <header className="px-6 py-6 border-b border-[var(--color-border)] bg-[var(--color-surface-0)]">
@@ -46,19 +54,53 @@ export default function ResourceSpecialtyLayout() {
         <h1 className="font-cinzel text-xl font-semibold text-[var(--color-text-primary)]">
           {summary.specialtyName}
         </h1>
-        <p className="text-sm text-[var(--color-text-muted)] mt-1">
-          {summary.assetCount} assets · {summary.protocolCount} protocolos · {summary.activationCount} ativações
-        </p>
+        {hasContent && (
+          <p className="text-sm text-[var(--color-text-muted)] mt-1">
+            {summary.assetCount > 0 && `${summary.assetCount} assets`}
+            {summary.assetCount > 0 && summary.protocolCount > 0 && ' · '}
+            {summary.protocolCount > 0 && `${summary.protocolCount} protocolos`}
+            {(summary.assetCount > 0 || summary.protocolCount > 0) && summary.activationCount > 0 && ' · '}
+            {summary.activationCount > 0 && `${summary.activationCount} ativações`}
+          </p>
+        )}
       </header>
 
-      <ResourceSpecialtyTabs />
-
-      <Outlet context={{ summary }} />
+      {hasContent ? (
+        <>
+          <ResourceSpecialtyTabs summary={summary} />
+          <Outlet context={{ summary }} />
+        </>
+      ) : (
+        <div className="p-12 text-center">
+          <p className="text-sm text-[var(--color-text-muted)]">
+            Recursos ainda não configurados para esta especialidade.
+          </p>
+        </div>
+      )}
     </div>
   );
 }
 
 export function ResourceSpecialtyIndexRedirect() {
   const { specialtySlug } = useParams<{ specialtySlug: string }>();
-  return <Navigate to={`/resources/${specialtySlug}/assets`} replace />;
+
+  const { data: summary, isLoading } = useQuery({
+    queryKey: ['resource-specialty', specialtySlug, getDataMode()],
+    queryFn: () => getSpecialtyResources(specialtySlug!),
+    enabled: Boolean(specialtySlug),
+  });
+
+  if (isLoading || !summary) {
+    return (
+      <div className="p-12 flex justify-center text-[var(--color-text-muted)]">
+        <Loader2 size={24} className="animate-spin" />
+      </div>
+    );
+  }
+
+  if (!hasAnyResourceContent(summary)) {
+    return null;
+  }
+
+  return <Navigate to={`/resources/${specialtySlug}/${getDefaultResourceTab(summary)}`} replace />;
 }

@@ -104,6 +104,10 @@ export interface ActivationScriptResource {
   assetName?: string;
   assetSlug?: string;
   assetType?: MethodologyAssetType;
+  toolSlug?: string;
+  imageUrl?: string;
+  sourceName?: string;
+  sourceReference?: string;
   sortOrder: number;
 }
 
@@ -124,6 +128,7 @@ export interface SpecialtyResourceSummary {
   assetCount: number;
   protocolCount: number;
   activationCount: number;
+  materialCount: number;
 }
 
 export type ResourceSearchField = 'name' | 'canonical_name' | 'original_name' | 'aliases';

@@ -2,7 +2,10 @@ import { useQuery } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
 import { ChevronRight, Loader2 } from 'lucide-react';
 import { getDataMode } from '@/lib/dataMode';
+import { ResourceBackLink } from '@/components/resources/ResourceBackLink';
+import { ResourceGraphPrintButton } from '@/components/resources/ResourceGraphPrintButton';
 import { getAssetResourceDetail, getSpecialtyProtocolDetail } from '@/services/resourceLibraryService';
+import { cn } from '@/lib/utils';
 
 function MetadataItem({ label, value }: { label: string; value?: string }) {
   if (!value) return null;
@@ -63,20 +66,30 @@ export default function ResourceAssetDetailPage() {
   const imbalances = meta.imbalances as string | string[] | undefined;
   const howToBalance = typeof meta.how_to_balance === 'string' ? meta.how_to_balance : undefined;
 
+  const isGraph = asset.assetType === 'graph';
+  const assetsListPath = `/resources/${specialtySlug}/assets`;
+
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">
-      <Link
-        to={`/resources/${specialtySlug}/assets`}
-        className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-gold)]"
-      >
-        ← Assets
-      </Link>
+      <ResourceBackLink fallbackTo={assetsListPath} />
 
       <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
         <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface-0)] overflow-hidden">
-          <div className="aspect-square bg-[var(--color-surface-1)]">
+          <div
+            className={cn(
+              'aspect-square flex items-center justify-center overflow-hidden',
+              isGraph ? 'bg-[#f4f2ec]' : 'bg-[var(--color-surface-1)]',
+            )}
+          >
             {asset.imageUrlResolved ? (
-              <img src={asset.imageUrlResolved} alt={asset.name} className="w-full h-full object-cover" />
+              <img
+                src={asset.imageUrlResolved}
+                alt={asset.name}
+                className={cn(
+                  'w-full h-full',
+                  isGraph ? 'object-contain p-4' : 'object-cover',
+                )}
+              />
             ) : (
               <div className="w-full h-full flex items-center justify-center text-[var(--color-text-muted)] text-xs">
                 Sem imagem
@@ -88,8 +101,16 @@ export default function ResourceAssetDetailPage() {
             {asset.originalName && (
               <p className="text-sm text-[var(--color-gold)]">{asset.originalName}</p>
             )}
-            {asset.aliases.length > 0 && (
-              <p className="text-xs text-[var(--color-text-muted)]">{asset.aliases.join(' · ')}</p>
+            {(asset.aliases ?? []).length > 0 && (
+              <p className="text-xs text-[var(--color-text-muted)]">{(asset.aliases ?? []).join(' · ')}</p>
+            )}
+            {isGraph && (
+              <div className="pt-2">
+                <ResourceGraphPrintButton
+                  specialtySlug={specialtySlug!}
+                  assetSlug={asset.slug}
+                />
+              </div>
             )}
           </div>
         </div>

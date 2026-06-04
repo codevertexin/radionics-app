@@ -59,6 +59,53 @@ export async function supabaseGetSpecialtyProtocols(
   return { context, protocols };
 }
 
+export async function supabaseGetSpecialtyProtocolsWithLinkedAssets(
+  specialtySlug: string,
+): Promise<{ context: SpecialtyMethodologyContext; protocols: import('@/lib/resources/protocolSearch').ProtocolWithLinkedAssets[] }> {
+  const client = requireSupabaseClient();
+  await requireAuthUserId(client);
+
+  const context = await resolveSpecialtyBySlug(specialtySlug);
+
+  const { data, error } = await client
+    .from('methodology_protocols')
+    .select(`
+      *,
+      protocol_assets (
+        sort_order,
+        asset_role,
+        methodology_assets (*)
+      )
+    `)
+    .eq('specialty_id', context.specialtyId)
+    .eq('status', 'active')
+    .order('sort_order');
+
+  if (error) mapRlsError('getSpecialtyProtocolsWithLinkedAssets', error);
+
+  const protocols = ((data ?? []) as Array<
+    MethodologyProtocolRow & {
+      protocol_assets: ProtocolAssetRow[] | null;
+    }
+  >).map(row => {
+    const linkedAssets = (row.protocol_assets ?? [])
+      .flatMap(pa => {
+        const assetRow = unwrapJoin(pa.methodology_assets);
+        return assetRow ? [mapMethodologyAsset(assetRow)] : [];
+      })
+      .sort((a, b) => a.sortOrder - b.sortOrder);
+
+    const { protocol_assets: _pa, ...protocolRow } = row;
+    void _pa;
+    return {
+      ...mapMethodologyProtocol(protocolRow),
+      linkedAssets,
+    };
+  });
+
+  return { context, protocols };
+}
+
 export async function supabaseGetProtocolDetail(
   specialtySlug: string,
   protocolSlug: string,
@@ -151,16 +198,26 @@ export async function supabaseGetSpecialtyActivationScripts(
 
   const { data: assetRows, error: assetError } = await client
     .from('methodology_assets')
-    .select('id, name, slug, asset_type')
+    .select('id, name, slug, asset_type, tool_id, methodology_tools (slug)')
     .in('id', [...new Set([...contentById.values()])]);
 
   if (assetError) mapRlsError('getSpecialtyActivationScripts.assets', assetError);
 
   const assetById = new Map(
-    (assetRows ?? []).map(r => [
-      r.id as string,
-      { name: r.name as string, slug: r.slug as string, assetType: r.asset_type as string },
-    ]),
+    (assetRows ?? []).map(r => {
+      const toolJoin = unwrapJoin(
+        (r as { methodology_tools: { slug: string } | { slug: string }[] | null }).methodology_tools,
+      );
+      return [
+        r.id as string,
+        {
+          name: r.name as string,
+          slug: r.slug as string,
+          assetType: r.asset_type as string,
+          toolSlug: toolJoin?.slug,
+        },
+      ];
+    }),
   );
 
   const { data: linkRows, error: linkError } = await client
@@ -179,6 +236,8 @@ export async function supabaseGetSpecialtyActivationScripts(
         content,
         status,
         is_active,
+        source_name,
+        source_reference,
         metadata
       )
     `)
@@ -208,6 +267,7 @@ export async function supabaseGetSpecialtyActivationScripts(
         assetName: asset?.name,
         assetSlug: asset?.slug,
         assetType: asset?.assetType as ActivationScriptResource['assetType'],
+        toolSlug: asset?.toolSlug,
         sortOrder: link.sort_order,
       }),
     );

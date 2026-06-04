@@ -3,21 +3,32 @@
  */
 
 import { isMockMode, isSupabaseMode } from '@/lib/dataMode';
-import { MethodologyEngineError } from '@/lib/methodology/errors';
+import { MethodologyEngineError, isMethodologyEngineError } from '@/lib/methodology/errors';
 import { groupMediaByAssetId, resolvePrimaryAssetMedia } from '@/lib/methodology/mediaResolution';
 import {
   getMockActivationScripts,
   getMockProtocolDetail,
   getMockProtocolsForAsset,
-  getMockProtocolsForSpecialty,
+  getMockProtocolsWithLinkedAssets,
 } from '@/lib/resources/mockResourceLibraryData';
+import { countResourcesDisplayAssets } from '@/lib/resources/resourceFilters';
+import {
+  groupActivationsByTool,
+  groupAssetsByTool,
+  type ActivationToolGroup,
+  type ToolAssetGroup,
+} from '@/lib/resources/resourceGrouping';
+import {
+  searchProtocols as filterProtocolsByQuery,
+  matchProtocolWithAssets,
+  type ProtocolWithLinkedAssets,
+} from '@/lib/resources/protocolSearch';
 import {
   buildActivationSearchResult,
   buildAssetSearchResult,
   buildProtocolSearchResult,
   filterAssetsBySearch,
   matchActivationSearch,
-  matchProtocolSearch,
   sortSearchResults,
 } from '@/lib/resources/resourceSearch';
 import {
@@ -57,24 +68,40 @@ async function assertApprovedSpecialty(specialtySlug: string): Promise<Specialty
   return specialty;
 }
 
+async function safeSpecialtyTools(slug: string) {
+  try {
+    return await getSpecialtyTools(slug);
+  } catch (err) {
+    if (isMethodologyEngineError(err) && err.code === 'NOT_FOUND') return [];
+    throw err;
+  }
+}
+
+async function safeSpecialtyAssets(slug: string) {
+  try {
+    return await engineGetSpecialtyAssets(slug);
+  } catch (err) {
+    if (isMethodologyEngineError(err) && err.code === 'NOT_FOUND') return [];
+    throw err;
+  }
+}
+
 async function buildResourceAssets(specialtySlug: string): Promise<ResourceAssetView[]> {
   const [tools, assets, content, media] = await Promise.all([
-    getSpecialtyTools(specialtySlug),
-    engineGetSpecialtyAssets(specialtySlug),
-    getSpecialtyAssetContent(specialtySlug),
-    getSpecialtyAssetMedia(specialtySlug),
+    safeSpecialtyTools(specialtySlug),
+    safeSpecialtyAssets(specialtySlug),
+    getSpecialtyAssetContent(specialtySlug).catch(() => []),
+    getSpecialtyAssetMedia(specialtySlug).catch(() => []),
   ]);
 
   const toolById = new Map(tools.map(t => [t.toolId, t.tool]));
   const contentByAssetId = new Map(content.map(c => [c.assetId, c]));
   const mediaByAssetId = groupMediaByAssetId(media);
-  const context = tools[0]
-    ? { specialtyId: tools[0].specialtyId }
-    : { specialtyId: '' };
+  const specialtyId = tools[0]?.specialtyId ?? '';
 
   return assets.map(asset => {
     const resolved = resolvePrimaryAssetMedia(asset, mediaByAssetId[asset.id] ?? [], {
-      specialtyId: context.specialtyId,
+      specialtyId,
     });
     const tool = toolById.get(asset.toolId);
     return {
@@ -87,6 +114,27 @@ async function buildResourceAssets(specialtySlug: string): Promise<ResourceAsset
   });
 }
 
+function enrichActivationScripts(
+  scripts: ActivationScriptResource[],
+  assets: ResourceAssetView[],
+): ActivationScriptResource[] {
+  const assetById = new Map(assets.map(a => [a.id, a]));
+  return scripts.map(script => {
+    const asset = script.assetId ? assetById.get(script.assetId) : undefined;
+    return {
+      ...script,
+      assetName: script.assetName ?? asset?.name,
+      assetSlug: script.assetSlug ?? asset?.slug,
+      assetType: script.assetType ?? asset?.assetType,
+      toolSlug: script.toolSlug ?? asset?.toolSlug,
+      imageUrl: script.imageUrl ?? asset?.imageUrlResolved ?? asset?.imageUrl,
+    };
+  });
+}
+
+export { groupAssetsByTool, groupActivationsByTool };
+export type { ToolAssetGroup, ActivationToolGroup, ProtocolWithLinkedAssets };
+
 export async function getAvailableSpecialties(): Promise<Specialty[]> {
   if (isMockMode()) await delay();
   return getApprovedSpecialties();
@@ -98,11 +146,11 @@ export async function getSpecialtyResources(
   const specialty = await assertApprovedSpecialty(specialtySlug);
   const slug = normalizeSlug(specialtySlug);
 
-  const [tools, assets, protocols, scripts] = await Promise.all([
-    getSpecialtyTools(slug),
-    engineGetSpecialtyAssets(slug),
-    getSpecialtyProtocols(slug),
-    getSpecialtyActivationScripts(slug),
+  const [tools, rawAssets, protocols, scripts] = await Promise.all([
+    safeSpecialtyTools(slug),
+    safeSpecialtyAssets(slug),
+    getSpecialtyProtocolsWithLinkedAssets(slug).catch(() => []),
+    getSpecialtyActivationScripts(slug, { enrichImages: false }).catch(() => []),
   ]);
 
   return {
@@ -110,10 +158,28 @@ export async function getSpecialtyResources(
     specialtySlug: specialty.slug,
     specialtyName: specialty.name,
     toolCount: tools.length,
-    assetCount: assets.length,
+    assetCount: countResourcesDisplayAssets(rawAssets),
     protocolCount: protocols.length,
     activationCount: scripts.length,
+    materialCount: 0,
   };
+}
+
+export function hasAnyResourceContent(summary: SpecialtyResourceSummary): boolean {
+  return (
+    summary.assetCount > 0
+    || summary.protocolCount > 0
+    || summary.activationCount > 0
+    || summary.materialCount > 0
+  );
+}
+
+export function getDefaultResourceTab(summary: SpecialtyResourceSummary): string {
+  if (summary.assetCount > 0) return 'assets';
+  if (summary.protocolCount > 0) return 'protocols';
+  if (summary.activationCount > 0) return 'activations';
+  if (summary.materialCount > 0) return 'materials';
+  return 'assets';
 }
 
 /** Returns enriched assets for the Resources UI. */
@@ -122,21 +188,39 @@ export async function getSpecialtyAssets(specialtySlug: string): Promise<Resourc
   return buildResourceAssets(normalizeSlug(specialtySlug));
 }
 
-export async function getSpecialtyProtocols(specialtySlug: string): Promise<MethodologyProtocol[]> {
+export async function getSpecialtyProtocolsWithLinkedAssets(
+  specialtySlug: string,
+): Promise<ProtocolWithLinkedAssets[]> {
   const slug = normalizeSlug(specialtySlug);
   await assertApprovedSpecialty(slug);
 
   if (isMockMode()) {
     await delay();
-    return getMockProtocolsForSpecialty(slug);
+    return getMockProtocolsWithLinkedAssets(slug);
   }
 
   if (isSupabaseMode()) {
-    const { protocols } = await supabaseResources.supabaseGetSpecialtyProtocols(slug);
+    const { protocols } = await supabaseResources.supabaseGetSpecialtyProtocolsWithLinkedAssets(slug);
     return protocols;
   }
 
   throw new MethodologyEngineError('VITE_DATA_MODE inválido.', 'CONFIG');
+}
+
+export async function getSpecialtyProtocols(specialtySlug: string): Promise<MethodologyProtocol[]> {
+  const items = await getSpecialtyProtocolsWithLinkedAssets(specialtySlug);
+  return items.map(({ linkedAssets: _la, ...protocol }) => {
+    void _la;
+    return protocol;
+  });
+}
+
+export async function searchProtocols(
+  specialtySlug: string,
+  query: string,
+): Promise<ProtocolWithLinkedAssets[]> {
+  const protocols = await getSpecialtyProtocolsWithLinkedAssets(specialtySlug);
+  return filterProtocolsByQuery(query, protocols);
 }
 
 export async function getSpecialtyProtocolDetail(
@@ -160,21 +244,29 @@ export async function getSpecialtyProtocolDetail(
 
 export async function getSpecialtyActivationScripts(
   specialtySlug: string,
+  options?: { enrichImages?: boolean },
 ): Promise<ActivationScriptResource[]> {
   const slug = normalizeSlug(specialtySlug);
   await assertApprovedSpecialty(slug);
 
+  let scripts: ActivationScriptResource[] = [];
+
   if (isMockMode()) {
     await delay();
-    return getMockActivationScripts(slug);
+    scripts = getMockActivationScripts(slug);
+  } else if (isSupabaseMode()) {
+    const result = await supabaseResources.supabaseGetSpecialtyActivationScripts(slug);
+    scripts = result.scripts;
+  } else {
+    throw new MethodologyEngineError('VITE_DATA_MODE inválido.', 'CONFIG');
   }
 
-  if (isSupabaseMode()) {
-    const { scripts } = await supabaseResources.supabaseGetSpecialtyActivationScripts(slug);
+  if (options?.enrichImages === false) {
     return scripts;
   }
 
-  throw new MethodologyEngineError('VITE_DATA_MODE inválido.', 'CONFIG');
+  const assets = await buildResourceAssets(slug);
+  return enrichActivationScripts(scripts, assets);
 }
 
 export async function getAssetResourceDetail(
@@ -215,8 +307,8 @@ export async function searchResources(
   for (const specialty of targets) {
     const [assets, protocols, scripts] = await Promise.all([
       buildResourceAssets(specialty.slug).catch(() => [] as ResourceAssetView[]),
-      getSpecialtyProtocols(specialty.slug).catch(() => [] as MethodologyProtocol[]),
-      getSpecialtyActivationScripts(specialty.slug).catch(() => [] as ActivationScriptResource[]),
+      getSpecialtyProtocolsWithLinkedAssets(specialty.slug).catch(() => []),
+      getSpecialtyActivationScripts(specialty.slug).catch(() => []),
     ]);
 
     for (const { asset, matchedField } of filterAssetsBySearch(q, assets)) {
@@ -224,7 +316,7 @@ export async function searchResources(
     }
 
     for (const protocol of protocols) {
-      if (matchProtocolSearch(q, protocol)) {
+      if (matchProtocolWithAssets(q, protocol, protocol.linkedAssets)) {
         results.push(buildProtocolSearchResult(protocol, specialty.slug, specialty.name));
       }
     }
@@ -239,4 +331,4 @@ export async function searchResources(
   return sortSearchResults(results);
 }
 
-export { MethodologyEngineError, isMethodologyEngineError } from '@/lib/methodology/errors';
+export { MethodologyEngineError, isMethodologyEngineError };

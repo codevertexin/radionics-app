@@ -215,6 +215,17 @@ export const SPECIALTIES: Specialty[] = [
     toolCount: 5,
     certificationStatus: 'not_certified',
   },
+  {
+    id: 'spec-apometria',
+    name: 'Apometria',
+    slug: 'apometria',
+    description: 'Técnica de desobsessão e limpeza espiritual profunda.',
+    category: 'Espiritual',
+    requiresCertification: true,
+    isActive: true,
+    toolCount: 0,
+    certificationStatus: 'approved',
+  },
 ];
 
 // ─── SPECIALTY REQUESTS ───────────────────────────────────────
@@ -304,6 +315,19 @@ export const CERTIFICATIONS: Certification[] = [
     notes: 'Certificação Mesa 49 — símbolos angelicais.',
     submittedAt: '2024-07-01T09:00:00Z',
     reviewedAt: '2024-07-10T14:00:00Z',
+    documents: [],
+  },
+  {
+    id: 'cert-spec-004',
+    therapistId: 'therapist-001',
+    specialtyId: 'spec-apometria',
+    status: 'approved',
+    yearsOfExperience: 3,
+    trainingInstitution: 'Centro de Apometria',
+    trainingCompletedDate: '2023-09-01',
+    notes: 'Certificação Apometria — sem recursos importados no mock.',
+    submittedAt: '2023-10-01T09:00:00Z',
+    reviewedAt: '2023-10-15T14:00:00Z',
     documents: [],
   },
 ];

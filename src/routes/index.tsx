@@ -31,6 +31,7 @@ import ResourceProtocolsPage from '@/pages/resources/ResourceProtocolsPage';
 import ResourceProtocolDetailPage from '@/pages/resources/ResourceProtocolDetailPage';
 import ResourceActivationsPage from '@/pages/resources/ResourceActivationsPage';
 import ResourceMaterialsPage from '@/pages/resources/ResourceMaterialsPage';
+import ResourceGraphPrintPage from '@/pages/resources/ResourceGraphPrintPage';
 
 function WithLayout({ children }: { children: React.ReactNode }) {
   return <AppLayout>{children}</AppLayout>;
@@ -67,6 +68,14 @@ export function AppRoutes() {
       <Route path="/methodologies" element={<Navigate to="/specialties" replace />} />
       <Route path="/certifications" element={<ProtectedWithLayout><CertificationsPage /></ProtectedWithLayout>} />
       <Route path="/profile" element={<ProtectedWithLayout><ProfilePage /></ProtectedWithLayout>} />
+      <Route
+        path="/resources/:specialtySlug/assets/:assetSlug/print"
+        element={
+          <RequireSupabaseAuth>
+            <ResourceGraphPrintPage />
+          </RequireSupabaseAuth>
+        }
+      />
       <Route path="/resources" element={<ProtectedWithLayout><ResourcesHomePage /></ProtectedWithLayout>} />
       <Route path="/resources/:specialtySlug" element={<ProtectedWithLayout><ResourceSpecialtyLayout /></ProtectedWithLayout>}>
         <Route index element={<ResourceSpecialtyIndexRedirect />} />

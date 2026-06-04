@@ -51,6 +51,8 @@ export type ActivationScriptRow = {
   content: string;
   status: string;
   is_active: boolean | null;
+  source_name: string | null;
+  source_reference: string | null;
   metadata: Record<string, unknown> | null;
 };
 
@@ -106,6 +108,8 @@ export function mapActivationScriptResource(
     assetName?: string;
     assetSlug?: string;
     assetType?: ActivationScriptResource['assetType'];
+    toolSlug?: string;
+    imageUrl?: string;
     sortOrder?: number;
   },
 ): ActivationScriptResource {
@@ -119,6 +123,10 @@ export function mapActivationScriptResource(
     assetName: extras?.assetName,
     assetSlug: extras?.assetSlug,
     assetType: extras?.assetType,
+    toolSlug: extras?.toolSlug,
+    imageUrl: extras?.imageUrl,
+    sourceName: row.source_name ?? undefined,
+    sourceReference: row.source_reference ?? undefined,
     sortOrder: extras?.sortOrder ?? 0,
   };
 }

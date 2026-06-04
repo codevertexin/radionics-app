@@ -1,0 +1,60 @@
+/* Graph sheet — browser print (A4 portrait). Loaded by ResourceGraphPrintPage only. */
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 18mm 15mm;
+  }
+
+  html,
+  body {
+    background: #fff !important;
+    color: #1a1a2e !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  body * {
+    visibility: hidden;
+  }
+
+  .graph-print-root,
+  .graph-print-root * {
+    visibility: visible;
+  }
+
+  .graph-print-root {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    min-height: auto;
+    background: #fff !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  .graph-print-toolbar {
+    display: none !important;
+  }
+
+  .graph-print-sheet {
+    box-shadow: none !important;
+    width: 100% !important;
+    min-height: auto !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    page-break-after: avoid;
+  }
+
+  .graph-print-image-frame {
+    border: none !important;
+    background: #fff !important;
+    min-height: 220mm;
+  }
+
+  .graph-print-image-frame img {
+    max-height: 240mm;
+  }
+}
