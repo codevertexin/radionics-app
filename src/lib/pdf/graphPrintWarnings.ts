@@ -31,6 +31,15 @@ export function lowPrintResolutionWarning(
   };
 }
 
+/** Therapists in production must not see technical export warnings. */
+export function filterWarningsForTherapist(
+  warnings: GraphPrintWarning[],
+  isProduction: boolean,
+): GraphPrintWarning[] {
+  if (!isProduction) return warnings;
+  return [];
+}
+
 export function mergeGraphPrintWarnings(
   ...groups: (GraphPrintWarning | GraphPrintWarning[] | undefined)[]
 ): GraphPrintWarning[] {

@@ -1,8 +1,18 @@
 import { useCallback, useState } from 'react';
-import { exportGraphAssetPdf, GraphPdfExportError } from '@/lib/pdf/graphAssetPdf';
+import { exportTherapeuticAssetPdf, GraphPdfExportError } from '@/lib/pdf/graphAssetPdf';
+import type { TherapeuticPrintSizeCm } from '@/lib/pdf/graphPrintConstants';
 import { buildGraphPdfFilename, downloadBlob } from '@/lib/pdf/downloadBlob';
-import { buildGraphPrintSpec } from '@/lib/pdf/graphPrintTypes';
-import type { GraphPrintWarning } from '@/lib/pdf/graphPrintWarnings';
+import {
+  PRINT_LAYOUT_UNAVAILABLE_MESSAGE,
+  isAppProduction,
+} from '@/lib/pdf/graphPrintEnvironment';
+import {
+  buildGraphPrintSpec,
+  hasPrintImageUrl,
+  isTherapeuticPdfAssetType,
+  parseGraphAssetPrintMetadata,
+} from '@/lib/pdf/graphPrintTypes';
+import { filterWarningsForTherapist, type GraphPrintWarning } from '@/lib/pdf/graphPrintWarnings';
 import { getAssetResourceDetail } from '@/services/resourceLibraryService';
 import type { ResourceAssetView } from '@/types';
 
@@ -10,6 +20,7 @@ export interface GraphAssetPdfExportParams {
   asset?: ResourceAssetView | null;
   specialtySlug?: string;
   assetSlug?: string;
+  printSizeCm: TherapeuticPrintSizeCm;
 }
 
 export function useGraphAssetPdfExport() {
@@ -29,29 +40,49 @@ export function useGraphAssetPdfExport() {
         asset = await getAssetResourceDetail(params.specialtySlug, params.assetSlug);
       }
 
-      if (!asset || asset.assetType !== 'graph') {
+      if (!asset || !isTherapeuticPdfAssetType(asset.assetType)) {
         throw new GraphPdfExportError(
-          'Exportação PDF disponível apenas para gráficos radiônicos.',
+          'Este tipo de asset não suporta exportação PDF terapêutica.',
           'RENDER_FAILED',
         );
       }
 
-      const spec = buildGraphPrintSpec(asset);
-      if (!spec) {
-        throw new GraphPdfExportError('Imagem do gráfico não disponível.', 'NO_IMAGE');
+      const meta = parseGraphAssetPrintMetadata(asset.metadata);
+      if (isAppProduction() && !hasPrintImageUrl(meta)) {
+        throw new GraphPdfExportError(PRINT_LAYOUT_UNAVAILABLE_MESSAGE, 'NO_PRINT_LAYOUT');
       }
 
-      const { pdfBytes, warnings: exportWarnings } = await exportGraphAssetPdf(spec);
+      const spec = buildGraphPrintSpec(asset, { printSizeCm: params.printSizeCm });
+      if (!spec) {
+        throw new GraphPdfExportError(
+          isAppProduction()
+            ? PRINT_LAYOUT_UNAVAILABLE_MESSAGE
+            : 'Imagem do gráfico não disponível.',
+          'NO_IMAGE',
+        );
+      }
+
+      const { pdfBytes, warnings: exportWarnings } = await exportTherapeuticAssetPdf(spec);
       const blob = new Blob([pdfBytes], { type: 'application/pdf' });
-      downloadBlob(blob, buildGraphPdfFilename(spec.filenameBase));
-      setWarnings(exportWarnings);
-      return { warnings: exportWarnings };
+      downloadBlob(blob, buildGraphPdfFilename(spec.filenameBase, spec.printSizeCm));
+
+      const visibleWarnings = filterWarningsForTherapist(exportWarnings, isAppProduction());
+      setWarnings(visibleWarnings);
+      return { warnings: visibleWarnings };
     } catch (err) {
+      if (err instanceof GraphPdfExportError && err.code === 'NO_PRINT_LAYOUT') {
+        setError(PRINT_LAYOUT_UNAVAILABLE_MESSAGE);
+        throw err;
+      }
       const message =
         err instanceof GraphPdfExportError
-          ? err.message
+          ? isAppProduction() && err.code !== 'NO_PRINT_LAYOUT'
+            ? 'Não foi possível gerar o PDF. Tente novamente mais tarde.'
+            : err.message
           : err instanceof Error
-            ? err.message
+            ? isAppProduction()
+              ? 'Não foi possível gerar o PDF. Tente novamente mais tarde.'
+              : err.message
             : 'Erro ao exportar PDF.';
       setError(message);
       throw err;

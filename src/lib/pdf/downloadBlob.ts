@@ -1,3 +1,5 @@
+import type { TherapeuticPrintSizeCm } from '@/lib/pdf/graphPrintConstants';
+
 /** Trigger a file download in the browser. */
 export function downloadBlob(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob);
@@ -11,8 +13,11 @@ export function downloadBlob(blob: Blob, filename: string): void {
   URL.revokeObjectURL(url);
 }
 
-/** Safe PDF filename from asset slug or title. */
-export function buildGraphPdfFilename(base: string): string {
+/** Safe PDF filename from asset slug and physical size. */
+export function buildGraphPdfFilename(
+  base: string,
+  sizeCm: TherapeuticPrintSizeCm,
+): string {
   const sanitized = base
     .trim()
     .toLowerCase()
@@ -21,5 +26,5 @@ export function buildGraphPdfFilename(base: string): string {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '');
 
-  return `${sanitized || 'grafico'}.pdf`;
+  return `${sanitized || 'grafico'}-${sizeCm}cm.pdf`;
 }

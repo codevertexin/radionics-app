@@ -7,13 +7,17 @@ import type { GraphPrintSpec } from '@/lib/pdf/graphPrintTypes';
 
 /**
  * Validates intrinsic image pixels against therapeutic print target.
- * Does not upscale — warnings only.
+ * SVG assets skip this — vector is print-ready at any selected physical size.
  */
 export function validatePrintImageResolution(
   widthPx: number,
   heightPx: number,
-  spec: Pick<GraphPrintSpec, 'printSizeCm' | 'printDpi'>,
+  spec: Pick<GraphPrintSpec, 'printSizeCm' | 'printDpi' | 'printAssetType'>,
 ): GraphPrintWarning[] {
+  if (spec.printAssetType === 'svg') {
+    return [];
+  }
+
   const targetPx = cmToPixels(spec.printSizeCm, spec.printDpi);
   const warnings: GraphPrintWarning[] = [];
 

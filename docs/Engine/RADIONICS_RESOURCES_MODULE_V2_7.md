@@ -91,20 +91,26 @@ npm run lint
 - Ativações: só título = nome do asset; sem `sourceName` / `sourceReference` / nome duplicado do script.
 - Imagens de ativação: moldura quadrada, `object-fit: contain`, fundo neutro.
 
-### Exportação PDF terapêutica (gráficos)
-- Conceito primário: **tamanho físico de impressão** (`print_size_cm`), não A4.
-- Tamanhos suportados: **21×21**, **25×25**, **33×33** cm (quadrado); default 21 cm @ 300 DPI.
-- **Imagem de ecrã ≠ imagem de impressão:** UI usa `image_url` / media resolvida; PDF usa ordem:
-  1. `metadata.print_image_url`
-  2. media de impressão dedicada (futuro)
-  3. fallback `image_url` + aviso de pré-visualização
-- Metadata (sem migração): `print_image_url`, `print_size_cm`, `print_dpi`, `print_layout`, `recommended_page_size`.
-- Layouts (registry): `graph_sheet_v1` (implementado), `graph_sheet_landscape`, `mesa_layout_v1` (reservados).
-- PDF: fundo **#FFFFFF**, dimensões determinísticas, imagem centrada `contain`, sem upscale silencioso.
-- Validação: aviso se resolução &lt; alvo (ex. 21 cm @ 300 DPI ≈ 2480 px/lado).
-- Futuro: A4/A3 via motor `iso_page` + `recommended_page_size`.
-- Módulo: `src/lib/pdf/*`, hook `useGraphAssetPdfExport`.
-- Rota `/print` — pré-visualização/debug temporária.
+### Exportação PDF terapêutica
+
+| Campo | Semântica |
+|-------|-----------|
+| `image_url` | Imagem de **visualização** (Recursos, sessões, ativações) |
+| `print_image_url` | **Layout final de impressão** preparado pelo admin/designer |
+
+Exemplo:
+- `image_url`: `tools/map_outros/graphics/alta_vitalidade.jpg`
+- `print_image_url`: `prints/graphs/alta-vitalidade-emissor.svg`
+
+- Conceito primário: **tamanho físico de impressão** (selector UI: 21 / 25 / 31 cm), não A4.
+- **Um layout de impressão** (`print_image_url`) → vários PDFs conforme tamanho selecionado (21×21, 25×25, 31×31 cm).
+- **SVG (layout final):** colocado full-bleed no PDF via `svg2pdf.js` + `jspdf`; **sem** reconstruir título/margens/gráfico.
+- **PNG/JPG (layout preparado):** `pdf-lib` full-bleed; validação de DPI; sem upscale silencioso.
+- **Produção:** sem `print_image_url` → botão **Exportar PDF** desativado + «Versão de impressão ainda não disponível.»; sem avisos técnicos ao terapeuta.
+- **DEV:** fallback para `image_url` permitido (com aviso técnico); rota `/print` para pré-visualização/debug.
+- Metadata (sem migração): `print_image_url`, `print_asset_type`, `print_max_size_cm`, `print_size_cm`, `print_dpi`, `print_layout`.
+- Pipeline extensível a gráficos, anjos, chakras, MAP (`THERAPEUTIC_PDF_ASSET_TYPES`).
+- UI: `TherapeuticPrintSizeSelector` + **Exportar PDF**.
 
 ## V2.7 UX — Agrupamento e pesquisa
 
