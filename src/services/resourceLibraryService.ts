@@ -38,6 +38,7 @@ import {
   getSpecialtyTools,
 } from '@/services/methodologyEngineService';
 import { getApprovedSpecialties } from '@/services/specialtiesService';
+import { listMaterialsForSpecialty } from '@/services/materialsLibraryService';
 import * as supabaseResources from '@/services/supabase/resourceLibrarySupabase';
 import type {
   ActivationScriptResource,
@@ -146,11 +147,12 @@ export async function getSpecialtyResources(
   const specialty = await assertApprovedSpecialty(specialtySlug);
   const slug = normalizeSlug(specialtySlug);
 
-  const [tools, rawAssets, protocols, scripts] = await Promise.all([
+  const [tools, rawAssets, protocols, scripts, materials] = await Promise.all([
     safeSpecialtyTools(slug),
     safeSpecialtyAssets(slug),
     getSpecialtyProtocolsWithLinkedAssets(slug).catch(() => []),
     getSpecialtyActivationScripts(slug, { enrichImages: false }).catch(() => []),
+    listMaterialsForSpecialty(slug).catch(() => []),
   ]);
 
   return {
@@ -161,7 +163,7 @@ export async function getSpecialtyResources(
     assetCount: countResourcesDisplayAssets(rawAssets),
     protocolCount: protocols.length,
     activationCount: scripts.length,
-    materialCount: 0,
+    materialCount: materials.length,
   };
 }
 

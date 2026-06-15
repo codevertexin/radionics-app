@@ -476,3 +476,16 @@ export type {
   ActivationScriptType,
   MethodologyProtocolStatus,
 } from '@/types/methodology-engine';
+
+export type {
+  LibraryMaterial,
+  LibraryMaterialLink,
+  LibraryMaterialBundle,
+  LibraryMaterialType,
+  LibraryMaterialVisibility,
+  LibraryMaterialStatus,
+  LibraryMaterialTargetType,
+  LibraryMaterialSourceType,
+  MaterialTypeGroup,
+  SearchMaterialsOptions,
+} from '@/types/materials-library';
