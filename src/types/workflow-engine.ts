@@ -91,3 +91,47 @@ export interface WorkflowTemplateBundle {
   template: WorkflowTemplate;
   steps: WorkflowStep[];
 }
+
+/** Minimal session context for condition evaluation and content resolution (read-only). */
+export interface WorkflowSessionContext {
+  selectedProtocolId?: string;
+  /** Asset types present in the selected protocol (e.g. graph, angel). */
+  selectedProtocolAssetTypes?: string[];
+  /** Optional keyed outputs by step_code — for future adapter use. */
+  stepOutputs?: Record<string, Record<string, unknown>>;
+}
+
+export interface WorkflowConditionEvaluation {
+  condition: WorkflowCondition;
+  satisfied: boolean;
+  reason: string;
+}
+
+/** Lightweight read-only content references resolved from step.config. */
+export interface WorkflowStepResolvedContent {
+  stepId: string;
+  stepCode: string;
+  stepType: WorkflowStepType;
+  condition?: WorkflowConditionEvaluation;
+  measurement?: {
+    toolSlug: string;
+    mode?: WorkflowMeasurementMode;
+    available: boolean;
+    toolId?: string;
+  };
+  assetPicker?: {
+    toolSlug: string;
+    multi?: boolean;
+    max?: number;
+    available: boolean;
+    toolId?: string;
+    assetCount?: number;
+  };
+  protocol?: {
+    allowBrowse: boolean;
+    filterBySpecialty: boolean;
+    inline: boolean;
+    available: boolean;
+    protocolCount?: number;
+  };
+}

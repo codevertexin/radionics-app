@@ -503,4 +503,7 @@ export type {
   WorkflowMeasurementMode,
   WorkflowAssetPickerConfig,
   WorkflowProtocolConfig,
+  WorkflowSessionContext,
+  WorkflowConditionEvaluation,
+  WorkflowStepResolvedContent,
 } from '@/types/workflow-engine';
