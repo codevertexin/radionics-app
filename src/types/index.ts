@@ -489,3 +489,18 @@ export type {
   MaterialTypeGroup,
   SearchMaterialsOptions,
 } from '@/types/materials-library';
+
+export type {
+  WorkflowTemplate,
+  WorkflowStep,
+  WorkflowTemplateBundle,
+  WorkflowStepType,
+  WorkflowTemplateStatus,
+  WorkflowStepStatus,
+  WorkflowStepConfig,
+  WorkflowCondition,
+  WorkflowMeasurementConfig,
+  WorkflowMeasurementMode,
+  WorkflowAssetPickerConfig,
+  WorkflowProtocolConfig,
+} from '@/types/workflow-engine';
