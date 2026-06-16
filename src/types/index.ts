@@ -2,6 +2,8 @@
 // RADIONICS Type Definitions
 // ============================================================
 
+import type { WorkflowStateDraft } from '@/lib/workflow-adapter/types';
+
 export type SessionStatus = 'draft' | 'in_progress' | 'paused' | 'completed' | 'reported';
 export type StageStatus = 'not_started' | 'in_progress' | 'completed' | 'skipped';
 export type StepType = 'information' | 'input' | 'options' | 'activation' | 'review';
@@ -335,6 +337,13 @@ export interface Session {
   updatedAt: string;
   scheduledAt?: string;
   completedAt?: string;
+  /** V3.0D.3 — workflow execution metadata (optional; legacy sessions omit). */
+  executionMode?: 'legacy' | 'workflow';
+  workflowTemplateId?: string;
+  workflowTemplateSlug?: string;
+  workflowTemplateName?: string;
+  workflowVersion?: string;
+  workflowState?: WorkflowStateDraft;
 }
 
 // Report
@@ -507,3 +516,15 @@ export type {
   WorkflowConditionEvaluation,
   WorkflowStepResolvedContent,
 } from '@/types/workflow-engine';
+
+export type {
+  SessionExecutionMode,
+  WorkflowStateDraft,
+  WorkflowStepStateDraft,
+} from '@/lib/workflow-adapter/types';
+
+export type {
+  SessionWizardSelection,
+  SessionWizardWorkflowSelection,
+  SessionWizardLegacyTemplateSelection,
+} from '@/lib/sessionWizardSelection';

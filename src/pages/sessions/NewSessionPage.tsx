@@ -1,16 +1,23 @@
 import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
-  ChevronLeft, ChevronRight, CheckCircle2, Lock, User, Layers, Sparkles, Users,
+  ChevronLeft, ChevronRight, CheckCircle2, Lock, User, Layers, Sparkles, Users, GitBranch,
 } from 'lucide-react';
 import {
   getActiveTemplatesForSpecialty,
 } from '@/lib/sessionTemplates';
+import {
+  isWorkflowWizardSelection,
+  type SessionWizardSelection,
+} from '@/lib/sessionWizardSelection';
 import { SESSION_MODE_LABELS, cn } from '@/lib/utils';
+import { initializeWorkflowStateForSession } from '@/lib/workflow-adapter/initializeWorkflowState';
 import { listClients } from '@/services/clientsService';
 import { getApprovedSpecialties } from '@/services/specialtiesService';
 import { createSession } from '@/services/sessionsService';
-import type { Specialty, Template, Client, SessionMode } from '@/types';
+import { getWorkflowBundle, getWorkflowTemplatesForSpecialty } from '@/services/workflowEngineService';
+import type { Specialty, Client, SessionMode } from '@/types';
+import type { WorkflowTemplate } from '@/types/workflow-engine';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 type WizardStep = 'specialty' | 'template' | 'client' | 'confirm';
@@ -27,7 +34,7 @@ export default function NewSessionPage() {
   const queryClient = useQueryClient();
   const [step, setStep] = useState<WizardStep>('specialty');
   const [selectedSpecialty, setSelectedSpecialty] = useState<Specialty | null>(null);
-  const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
+  const [selectedPlan, setSelectedPlan] = useState<SessionWizardSelection | null>(null);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [sessionMode, setSessionMode] = useState<SessionMode>('distance');
   const [intention, setIntention] = useState('');
@@ -41,6 +48,27 @@ export default function NewSessionPage() {
   const { data: clients = [], isLoading: clientsLoading } = useQuery({
     queryKey: ['clients'],
     queryFn: listClients,
+  });
+
+  const {
+    data: workflowTemplates = [],
+    isLoading: workflowsLoading,
+    isError: workflowsError,
+  } = useQuery({
+    queryKey: ['workflow-templates', selectedSpecialty?.slug],
+    queryFn: async () => {
+      if (!selectedSpecialty) return [];
+      try {
+        return await getWorkflowTemplatesForSpecialty(selectedSpecialty.slug);
+      } catch (err) {
+        if (import.meta.env.DEV) {
+          console.warn('[NewSession] workflow templates unavailable:', err);
+        }
+        return [];
+      }
+    },
+    enabled: Boolean(selectedSpecialty?.slug),
+    retry: false,
   });
 
   const availableTemplates = useMemo(() => {
@@ -61,19 +89,66 @@ export default function NewSessionPage() {
     if (prev) setStep(prev.id);
   };
 
+  const selectWorkflow = (wf: WorkflowTemplate) => {
+    setSelectedPlan({
+      kind: 'workflow',
+      workflowTemplateId: wf.id,
+      slug: wf.slug,
+      name: wf.name,
+      version: wf.version,
+    });
+    goNext();
+  };
+
+  const selectLegacyTemplate = (templateId: string, name: string) => {
+    setSelectedPlan({ kind: 'legacy-template', templateId, name });
+    goNext();
+  };
+
   const handleStart = async () => {
-    if (!selectedSpecialty || !selectedTemplate || !selectedClient) return;
+    if (!selectedSpecialty || !selectedPlan || !selectedClient) return;
     setCreating(true);
     try {
+      if (isWorkflowWizardSelection(selectedPlan)) {
+        const bundle = await getWorkflowBundle(selectedPlan.workflowTemplateId).catch(() => null);
+        const workflowState = initializeWorkflowStateForSession(bundle, {
+          workflowTemplateId: selectedPlan.workflowTemplateId,
+          workflowTemplateSlug: selectedPlan.slug,
+          workflowVersion: selectedPlan.version,
+          intention: intention || undefined,
+        });
+
+        const session = await createSession({
+          clientId: selectedClient.id,
+          specialtyId: selectedSpecialty.id,
+          specialtyName: selectedSpecialty.name,
+          specialtySlug: selectedSpecialty.slug,
+          templateId: selectedPlan.workflowTemplateId,
+          templateName: selectedPlan.name,
+          sessionMode,
+          intention: intention || undefined,
+          executionMode: 'workflow',
+          workflowTemplateId: selectedPlan.workflowTemplateId,
+          workflowTemplateSlug: selectedPlan.slug,
+          workflowTemplateName: selectedPlan.name,
+          workflowVersion: selectedPlan.version,
+          workflowState,
+        });
+        await queryClient.invalidateQueries({ queryKey: ['sessions'] });
+        navigate(`/sessions/${session.id}`);
+        return;
+      }
+
       const session = await createSession({
         clientId: selectedClient.id,
         specialtyId: selectedSpecialty.id,
         specialtyName: selectedSpecialty.name,
         specialtySlug: selectedSpecialty.slug,
-        templateId: selectedTemplate.id,
-        templateName: selectedTemplate.name,
+        templateId: selectedPlan.templateId,
+        templateName: selectedPlan.name,
         sessionMode,
         intention: intention || undefined,
+        executionMode: 'legacy',
       });
       await queryClient.invalidateQueries({ queryKey: ['sessions'] });
       navigate(`/sessions/${session.id}`);
@@ -83,6 +158,9 @@ export default function NewSessionPage() {
   };
 
   const canProceedFromClient = Boolean(selectedClient);
+  const hasWorkflows = workflowTemplates.length > 0;
+  const hasLegacyTemplates = availableTemplates.length > 0;
+  const hasAnyPlan = hasWorkflows || hasLegacyTemplates;
 
   return (
     <div className="min-h-full bg-[var(--color-void)]">
@@ -134,7 +212,7 @@ export default function NewSessionPage() {
                     type="button"
                     onClick={() => {
                       setSelectedSpecialty(spec);
-                      setSelectedTemplate(null);
+                      setSelectedPlan(null);
                       setSelectedClient(null);
                       goNext();
                     }}
@@ -162,17 +240,20 @@ export default function NewSessionPage() {
 
         {step === 'template' && (
           <>
-            <h2 className="font-cinzel text-sm font-semibold text-[var(--color-text-secondary)]">Escolher template</h2>
+            <h2 className="font-cinzel text-sm font-semibold text-[var(--color-text-secondary)]">Escolher fluxo ou modelo</h2>
             {selectedSpecialty && (
               <p className="text-xs text-[var(--color-text-muted)]">
                 Especialidade: <span className="text-[var(--color-text-secondary)]">{selectedSpecialty.name}</span>
               </p>
             )}
-            {availableTemplates.length === 0 ? (
+
+            {workflowsLoading ? (
+              <p className="text-sm text-[var(--color-text-muted)]">A carregar fluxos...</p>
+            ) : !hasAnyPlan ? (
               <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface-0)] p-8 text-center">
                 <Layers size={32} className="mx-auto text-[var(--color-text-muted)] opacity-40 mb-3" />
                 <p className="text-sm text-[var(--color-text-primary)] font-medium mb-2">
-                  Nenhum template disponível para esta especialidade.
+                  Nenhum fluxo ou modelo disponível para esta especialidade.
                 </p>
                 <p className="text-sm text-[var(--color-text-muted)] mb-4">
                   Crie um template ou escolha outra especialidade.
@@ -188,7 +269,7 @@ export default function NewSessionPage() {
                   <button
                     type="button"
                     onClick={() => {
-                      setSelectedTemplate(null);
+                      setSelectedPlan(null);
                       setStep('specialty');
                     }}
                     className="text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]"
@@ -198,25 +279,80 @@ export default function NewSessionPage() {
                 </div>
               </div>
             ) : (
-              <div className="space-y-2">
-                {availableTemplates.map(tmpl => (
-                  <button
-                    key={tmpl.id}
-                    type="button"
-                    onClick={() => { setSelectedTemplate(tmpl); goNext(); }}
-                    className="w-full flex items-center gap-3 px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-0)] hover:border-[var(--color-gold)]/50 text-left transition-colors"
-                  >
-                    <Layers size={16} className="text-[var(--color-gold)] shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-[var(--color-text-primary)]">{tmpl.name}</p>
-                      <p className="text-xs text-[var(--color-text-muted)]">
-                        {tmpl.templateType === 'official' ? 'Oficial' : 'Personalizado'}
-                        {tmpl.description ? ` · ${tmpl.description}` : ''}
-                      </p>
+              <div className="space-y-6">
+                {hasWorkflows && (
+                  <section className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <GitBranch size={14} className="text-[var(--color-teal)]" />
+                      <h3 className="text-xs font-semibold uppercase tracking-wider text-[var(--color-teal)]">
+                        Fluxo recomendado
+                      </h3>
                     </div>
-                    <ChevronRight size={14} className="text-[var(--color-text-muted)]" />
-                  </button>
-                ))}
+                    {workflowsError && import.meta.env.DEV && (
+                      <p className="text-[10px] text-[var(--color-text-muted)]">
+                        Fluxos indisponíveis — a usar modelos clássicos.
+                      </p>
+                    )}
+                    {workflowTemplates.map(wf => (
+                      <button
+                        key={wf.id}
+                        type="button"
+                        onClick={() => selectWorkflow(wf)}
+                        className={cn(
+                          'w-full flex items-center gap-3 px-4 py-3 rounded-xl border text-left transition-colors',
+                          selectedPlan?.kind === 'workflow' && selectedPlan.workflowTemplateId === wf.id
+                            ? 'border-[var(--color-teal)] bg-[var(--color-teal)]/5'
+                            : 'border-[var(--color-border)] bg-[var(--color-surface-0)] hover:border-[var(--color-teal)]/40',
+                        )}
+                      >
+                        <GitBranch size={16} className="text-[var(--color-teal)] shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-[var(--color-text-primary)]">{wf.name}</p>
+                          <p className="text-xs text-[var(--color-text-muted)]">
+                            Workflow · {wf.version}
+                            {wf.isDefault ? ' · Predefinido' : ''}
+                            {wf.description ? ` · ${wf.description}` : ''}
+                          </p>
+                        </div>
+                        <ChevronRight size={14} className="text-[var(--color-text-muted)]" />
+                      </button>
+                    ))}
+                  </section>
+                )}
+
+                {hasLegacyTemplates && (
+                  <section className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Layers size={14} className="text-[var(--color-gold)]" />
+                      <h3 className="text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
+                        Modelos clássicos
+                      </h3>
+                    </div>
+                    {availableTemplates.map(tmpl => (
+                      <button
+                        key={tmpl.id}
+                        type="button"
+                        onClick={() => selectLegacyTemplate(tmpl.id, tmpl.name)}
+                        className={cn(
+                          'w-full flex items-center gap-3 px-4 py-3 rounded-xl border text-left transition-colors',
+                          selectedPlan?.kind === 'legacy-template' && selectedPlan.templateId === tmpl.id
+                            ? 'border-[var(--color-gold)] bg-[var(--color-gold)]/5'
+                            : 'border-[var(--color-border)] bg-[var(--color-surface-0)] hover:border-[var(--color-gold)]/50',
+                        )}
+                      >
+                        <Layers size={16} className="text-[var(--color-gold)] shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-[var(--color-text-primary)]">{tmpl.name}</p>
+                          <p className="text-xs text-[var(--color-text-muted)]">
+                            {tmpl.templateType === 'official' ? 'Oficial' : 'Personalizado'}
+                            {tmpl.description ? ` · ${tmpl.description}` : ''}
+                          </p>
+                        </div>
+                        <ChevronRight size={14} className="text-[var(--color-text-muted)]" />
+                      </button>
+                    ))}
+                  </section>
+                )}
               </div>
             )}
           </>
@@ -225,9 +361,10 @@ export default function NewSessionPage() {
         {step === 'client' && (
           <>
             <h2 className="font-cinzel text-sm font-semibold text-[var(--color-text-secondary)]">Escolher cliente</h2>
-            {selectedTemplate && (
+            {selectedPlan && (
               <p className="text-xs text-[var(--color-text-muted)]">
-                Template: <span className="text-[var(--color-text-secondary)]">{selectedTemplate.name}</span>
+                {isWorkflowWizardSelection(selectedPlan) ? 'Fluxo' : 'Modelo'}:{' '}
+                <span className="text-[var(--color-text-secondary)]">{selectedPlan.name}</span>
               </p>
             )}
             {clientsLoading ? (
@@ -287,12 +424,19 @@ export default function NewSessionPage() {
           </>
         )}
 
-        {step === 'confirm' && selectedSpecialty && selectedTemplate && selectedClient && (
+        {step === 'confirm' && selectedSpecialty && selectedPlan && selectedClient && (
           <>
             <h2 className="font-cinzel text-sm font-semibold text-[var(--color-text-secondary)]">Confirmar sessão</h2>
             <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface-0)] p-5 space-y-4">
               <SummaryRow label="Especialidade" value={selectedSpecialty.name} />
-              <SummaryRow label="Template" value={selectedTemplate.name} />
+              {isWorkflowWizardSelection(selectedPlan) ? (
+                <>
+                  <SummaryRow label="Fluxo" value={selectedPlan.name} />
+                  <SummaryRow label="Versão" value={selectedPlan.version} />
+                </>
+              ) : (
+                <SummaryRow label="Modelo" value={selectedPlan.name} />
+              )}
               <SummaryRow label="Cliente" value={selectedClient.name} />
               <div>
                 <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1.5">Modo</label>

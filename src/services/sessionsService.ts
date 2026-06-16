@@ -10,6 +10,7 @@ import { getClientById } from '@/services/clientsService';
 import { resolveSpecialtyToMethodologyId } from '@/lib/sessionTemplates';
 import { cloneToolResults, normalizeSessionWorkspace } from '@/lib/sessionWorkspace';
 import type { Session, SessionMode } from '@/types';
+import type { WorkflowStateDraft } from '@/lib/workflow-adapter/types';
 
 const delay = (ms = 100) => new Promise<void>(r => setTimeout(r, ms));
 
@@ -28,6 +29,23 @@ function cloneSession(session: Session): Session {
     })),
     toolResults: session.toolResults?.map(tr => ({ ...tr })),
     fieldValues: session.fieldValues ? { ...session.fieldValues } : undefined,
+    workflowState: session.workflowState
+      ? {
+          ...session.workflowState,
+          steps: Object.fromEntries(
+            Object.entries(session.workflowState.steps).map(([code, step]) => [
+              code,
+              {
+                ...step,
+                outputs: step.outputs ? { ...step.outputs } : undefined,
+              },
+            ]),
+          ),
+          legacy: session.workflowState.legacy
+            ? { ...session.workflowState.legacy }
+            : undefined,
+        }
+      : undefined,
   });
 }
 
@@ -51,16 +69,29 @@ export interface CreateSessionInput {
   templateName: string;
   sessionMode?: SessionMode;
   intention?: string;
+  executionMode?: 'legacy' | 'workflow';
+  workflowTemplateId?: string;
+  workflowTemplateSlug?: string;
+  workflowTemplateName?: string;
+  workflowVersion?: string;
+  workflowState?: WorkflowStateDraft;
 }
 
 export async function createSession(input: CreateSessionInput): Promise<Session> {
   await delay();
 
   const client = await getClientById(input.clientId);
-  const template = TEMPLATES.find(t => t.id === input.templateId);
+  if (!client) {
+    throw new Error('Cliente inválido');
+  }
 
-  if (!client || !template) {
-    throw new Error('Cliente ou template inválido');
+  const isWorkflow = input.executionMode === 'workflow';
+
+  if (!isWorkflow) {
+    const template = TEMPLATES.find(t => t.id === input.templateId);
+    if (!template) {
+      throw new Error('Cliente ou template inválido');
+    }
   }
 
   const methodologyKey = resolveSpecialtyToMethodologyId({
@@ -82,11 +113,12 @@ export async function createSession(input: CreateSessionInput): Promise<Session>
     methodologyId: methodology?.id ?? methodologyKey,
     methodologyName: methodology?.name ?? input.specialtyName,
     methodologyCode: methodology?.code ?? input.specialtySlug.toUpperCase().replace(/-/g, '_'),
-    templateId: template.id,
-    templateName: input.templateName || template.name,
+    templateId: input.templateId,
+    templateName: input.templateName,
     status: 'draft',
     sessionMode: input.sessionMode ?? 'distance',
     intention: input.intention,
+    executionMode: input.executionMode ?? 'legacy',
     stages: [
       { code: 'preparation', label: 'Preparação', status: 'not_started', steps: [] },
       { code: 'connection', label: 'Conexão', status: 'not_started', steps: [] },
@@ -100,6 +132,23 @@ export async function createSession(input: CreateSessionInput): Promise<Session>
     updatedAt: now,
     scheduledAt: now,
   };
+
+  if (isWorkflow) {
+    session.executionMode = 'workflow';
+    session.workflowTemplateId = input.workflowTemplateId;
+    session.workflowTemplateSlug = input.workflowTemplateSlug;
+    session.workflowTemplateName = input.workflowTemplateName ?? input.templateName;
+    session.workflowVersion = input.workflowVersion;
+    session.workflowState = input.workflowState
+      ? {
+          ...input.workflowState,
+          legacy: {
+            ...input.workflowState.legacy,
+            executionMode: 'workflow',
+          },
+        }
+      : undefined;
+  }
 
   sessionsStore = [session, ...sessionsStore];
   return cloneSession(session);
