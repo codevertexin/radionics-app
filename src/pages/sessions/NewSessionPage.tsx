@@ -7,6 +7,11 @@ import {
   getActiveTemplatesForSpecialty,
 } from '@/lib/sessionTemplates';
 import {
+  getLegacyTemplateDisplay,
+  getSessionTypeSummaryLabel,
+  getWorkflowTemplateDisplay,
+} from '@/lib/sessionWizardDisplay';
+import {
   isWorkflowWizardSelection,
   type SessionWizardSelection,
 } from '@/lib/sessionWizardSelection';
@@ -24,7 +29,7 @@ type WizardStep = 'specialty' | 'template' | 'client' | 'confirm';
 
 const STEPS: { id: WizardStep; label: string }[] = [
   { id: 'specialty', label: 'Especialidade' },
-  { id: 'template', label: 'Template' },
+  { id: 'template', label: 'Tipo de sessão' },
   { id: 'client', label: 'Cliente' },
   { id: 'confirm', label: 'Confirmar' },
 ];
@@ -240,7 +245,7 @@ export default function NewSessionPage() {
 
         {step === 'template' && (
           <>
-            <h2 className="font-cinzel text-sm font-semibold text-[var(--color-text-secondary)]">Escolher fluxo ou modelo</h2>
+            <h2 className="font-cinzel text-sm font-semibold text-[var(--color-text-secondary)]">Escolher tipo de sessão</h2>
             {selectedSpecialty && (
               <p className="text-xs text-[var(--color-text-muted)]">
                 Especialidade: <span className="text-[var(--color-text-secondary)]">{selectedSpecialty.name}</span>
@@ -248,15 +253,15 @@ export default function NewSessionPage() {
             )}
 
             {workflowsLoading ? (
-              <p className="text-sm text-[var(--color-text-muted)]">A carregar fluxos...</p>
+              <p className="text-sm text-[var(--color-text-muted)]">A carregar opções...</p>
             ) : !hasAnyPlan ? (
               <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface-0)] p-8 text-center">
                 <Layers size={32} className="mx-auto text-[var(--color-text-muted)] opacity-40 mb-3" />
                 <p className="text-sm text-[var(--color-text-primary)] font-medium mb-2">
-                  Nenhum fluxo ou modelo disponível para esta especialidade.
+                  Nenhum tipo de sessão disponível para esta especialidade.
                 </p>
                 <p className="text-sm text-[var(--color-text-muted)] mb-4">
-                  Crie um template ou escolha outra especialidade.
+                  Crie um modelo personalizado ou escolha outra especialidade.
                 </p>
                 <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
                   <Link
@@ -285,15 +290,17 @@ export default function NewSessionPage() {
                     <div className="flex items-center gap-2">
                       <GitBranch size={14} className="text-[var(--color-teal)]" />
                       <h3 className="text-xs font-semibold uppercase tracking-wider text-[var(--color-teal)]">
-                        Fluxo recomendado
+                        Recomendado
                       </h3>
                     </div>
                     {workflowsError && import.meta.env.DEV && (
                       <p className="text-[10px] text-[var(--color-text-muted)]">
-                        Fluxos indisponíveis — a usar modelos clássicos.
+                        Opção recomendada indisponível — a usar tipos clássicos.
                       </p>
                     )}
-                    {workflowTemplates.map(wf => (
+                    {workflowTemplates.map(wf => {
+                      const display = getWorkflowTemplateDisplay(wf.slug, wf.name, wf.description);
+                      return (
                       <button
                         key={wf.id}
                         type="button"
@@ -307,16 +314,22 @@ export default function NewSessionPage() {
                       >
                         <GitBranch size={16} className="text-[var(--color-teal)] shrink-0" />
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-[var(--color-text-primary)]">{wf.name}</p>
-                          <p className="text-xs text-[var(--color-text-muted)]">
-                            Workflow · {wf.version}
-                            {wf.isDefault ? ' · Predefinido' : ''}
-                            {wf.description ? ` · ${wf.description}` : ''}
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="text-sm font-medium text-[var(--color-text-primary)]">{display.title}</p>
+                            {display.badge && (
+                              <span className="text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-[var(--color-teal)]/15 text-[var(--color-teal)]">
+                                {display.badge}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-[var(--color-text-muted)] mt-0.5 leading-relaxed">
+                            {display.description}
                           </p>
                         </div>
                         <ChevronRight size={14} className="text-[var(--color-text-muted)]" />
                       </button>
-                    ))}
+                    );
+                    })}
                   </section>
                 )}
 
@@ -325,10 +338,12 @@ export default function NewSessionPage() {
                     <div className="flex items-center gap-2">
                       <Layers size={14} className="text-[var(--color-gold)]" />
                       <h3 className="text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
-                        Modelos clássicos
+                        Outros tipos
                       </h3>
                     </div>
-                    {availableTemplates.map(tmpl => (
+                    {availableTemplates.map(tmpl => {
+                      const display = getLegacyTemplateDisplay(tmpl.id, tmpl.name, tmpl.description);
+                      return (
                       <button
                         key={tmpl.id}
                         type="button"
@@ -342,15 +357,15 @@ export default function NewSessionPage() {
                       >
                         <Layers size={16} className="text-[var(--color-gold)] shrink-0" />
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-[var(--color-text-primary)]">{tmpl.name}</p>
-                          <p className="text-xs text-[var(--color-text-muted)]">
-                            {tmpl.templateType === 'official' ? 'Oficial' : 'Personalizado'}
-                            {tmpl.description ? ` · ${tmpl.description}` : ''}
+                          <p className="text-sm font-medium text-[var(--color-text-primary)]">{display.title}</p>
+                          <p className="text-xs text-[var(--color-text-muted)] mt-0.5 leading-relaxed">
+                            {display.description || (tmpl.templateType === 'official' ? 'Modelo oficial' : 'Modelo personalizado')}
                           </p>
                         </div>
                         <ChevronRight size={14} className="text-[var(--color-text-muted)]" />
                       </button>
-                    ))}
+                    );
+                    })}
                   </section>
                 )}
               </div>
@@ -363,8 +378,18 @@ export default function NewSessionPage() {
             <h2 className="font-cinzel text-sm font-semibold text-[var(--color-text-secondary)]">Escolher cliente</h2>
             {selectedPlan && (
               <p className="text-xs text-[var(--color-text-muted)]">
-                {isWorkflowWizardSelection(selectedPlan) ? 'Fluxo' : 'Modelo'}:{' '}
-                <span className="text-[var(--color-text-secondary)]">{selectedPlan.name}</span>
+                Tipo de sessão:{' '}
+                <span className="text-[var(--color-text-secondary)]">
+                  {isWorkflowWizardSelection(selectedPlan)
+                    ? getSessionTypeSummaryLabel(
+                        'workflow',
+                        getWorkflowTemplateDisplay(selectedPlan.slug, selectedPlan.name),
+                      )
+                    : getSessionTypeSummaryLabel(
+                        'legacy-template',
+                        getLegacyTemplateDisplay(selectedPlan.templateId, selectedPlan.name),
+                      )}
+                </span>
               </p>
             )}
             {clientsLoading ? (
@@ -430,12 +455,21 @@ export default function NewSessionPage() {
             <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface-0)] p-5 space-y-4">
               <SummaryRow label="Especialidade" value={selectedSpecialty.name} />
               {isWorkflowWizardSelection(selectedPlan) ? (
-                <>
-                  <SummaryRow label="Fluxo" value={selectedPlan.name} />
-                  <SummaryRow label="Versão" value={selectedPlan.version} />
-                </>
+                <SummaryRow
+                  label="Tipo de sessão"
+                  value={getSessionTypeSummaryLabel(
+                    'workflow',
+                    getWorkflowTemplateDisplay(selectedPlan.slug, selectedPlan.name),
+                  )}
+                />
               ) : (
-                <SummaryRow label="Modelo" value={selectedPlan.name} />
+                <SummaryRow
+                  label="Tipo de sessão"
+                  value={getSessionTypeSummaryLabel(
+                    'legacy-template',
+                    getLegacyTemplateDisplay(selectedPlan.templateId, selectedPlan.name),
+                  )}
+                />
               )}
               <SummaryRow label="Cliente" value={selectedClient.name} />
               <div>

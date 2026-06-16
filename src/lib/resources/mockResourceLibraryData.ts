@@ -9,6 +9,9 @@ import type {
   ProtocolAssetLink,
 } from '@/types';
 import type { ProtocolWithLinkedAssets } from '@/lib/resources/protocolSearch';
+import { MESA35_GRAPH_CATALOG } from '@/lib/methodology/mesa35GraphCatalog';
+import { MESA35_GRAPH_KNOWLEDGE } from '@/lib/methodology/mesa35GraphKnowledge';
+import { mesa35GraphCdnImageUrl } from '@/lib/methodology/mesa35GraphMedia';
 
 const NOW = '2024-01-01T00:00:00.000Z';
 const MOCK_SPECIALTY_MESA49 = 'spec-rad49';
@@ -120,21 +123,26 @@ export const MOCK_MESA49_PROTOCOL: MethodologyProtocolDetail = {
 };
 
 export const MOCK_ACTIVATION_SCRIPTS: ActivationScriptResource[] = [
-  {
-    id: 'mock-script-luxor',
-    name: 'Ativação Luxor',
-    slug: 'ativacao-luxor',
-    scriptType: 'activation',
-    content: 'Visualize luz dourada envolvendo o gráfico Luxor e irradie o campo do consulente.',
-    assetId: 'mock-asset-luxor',
-    assetName: 'Luxor',
-    assetSlug: 'luxor',
-    assetType: 'graph',
-    toolSlug: 'graph-set-35',
-    sourceName: 'Vanessa',
-    sourceReference: 'docs/knowledge/vanessa/GRAFICOS MESA.txt',
-    sortOrder: 1,
-  },
+  ...MESA35_GRAPH_CATALOG.map(entry => {
+    const knowledge = MESA35_GRAPH_KNOWLEDGE[entry.slug];
+    const title = knowledge?.title ?? entry.name;
+    return {
+      id: `mock-script-${entry.slug}`,
+      name: `Ativação ${title}`,
+      slug: `ativacao-${entry.slug}`,
+      scriptType: 'activation' as const,
+      content: knowledge?.activationText ?? '',
+      assetId: `mock-asset-${entry.slug}`,
+      assetName: title,
+      assetSlug: entry.slug,
+      assetType: 'graph' as const,
+      toolSlug: 'graph-set-35',
+      imageUrl: mesa35GraphCdnImageUrl(entry.slug),
+      sourceName: 'Vanessa',
+      sourceReference: 'docs/knowledge/vanessa/GRAFICOS MESA.txt',
+      sortOrder: entry.sortOrder,
+    };
+  }),
   {
     id: 'mock-script-chakra-basico',
     name: 'Ativação Chakra Básico',
@@ -148,7 +156,7 @@ export const MOCK_ACTIVATION_SCRIPTS: ActivationScriptResource[] = [
     toolSlug: 'chakra-set',
     sourceName: 'Vanessa',
     sourceReference: 'docs/knowledge/vanessa/Chakra.txt',
-    sortOrder: 2,
+    sortOrder: 100,
   },
 ];
 

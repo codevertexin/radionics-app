@@ -13,8 +13,15 @@ import { cn } from '@/lib/utils';
 import { MOCK_SAVE_LABELS } from '@/lib/dataMode';
 import { HAWKINS_LEVELS, getToolsByMethodology, TOOLS_RAD35 } from '@/data/mock-data';
 import { getSessionById, updateSession } from '@/services/sessionsService';
+import { useMesa35WorkflowAssets } from '@/hooks/useMesa35WorkflowAssets';
+import { useWorkflowAdapter } from '@/hooks/useWorkflowAdapter';
 import { applyToolResultPatch, computeStageCompletion, useSessionState } from '@/lib/session-state';
 import { buildWorkspacePersistPayload, countToolWork } from '@/lib/sessionWorkspace';
+import { isMesa35WorkflowSession } from '@/lib/workflow-adapter/isMesa35WorkflowSession';
+import type { Mesa35ChakraItem } from '@/lib/workflow-adapter/mesa35WorkspaceAssets';
+import { MESA35_ACTIVATION_UNAVAILABLE } from '@/lib/workflow-adapter/mesa35WorkspaceCopy';
+import { prepareWorkflowPersist } from '@/lib/workflow-adapter/workflowStatePersist';
+import type { WorkflowStateDraft } from '@/lib/workflow-adapter/types';
 import type {
   Session, SessionStage, ToolResult, HawkinsLevel, Tool, ToolIntensity, FieldValue,
 } from '@/types';
@@ -95,7 +102,7 @@ function ToolDetailDrawer({
         <div className="flex-1 overflow-y-auto">
           {/* Hero image */}
           <div className="relative h-44 overflow-hidden">
-            <img src={tool.imageUrl} alt={tool.name} className="w-full h-full object-cover" />
+            <img src={tool.imageUrl} alt={tool.name} className="w-full h-full object-contain bg-[var(--color-surface-1)] p-1" />
             <div className="absolute inset-0 bg-gradient-to-t from-[var(--color-void)] via-[var(--color-void)]/30 to-transparent" />
             <div className="absolute bottom-3 left-4 right-4">
               <p className="text-xs text-[var(--color-text-secondary)] leading-relaxed">{tool.description}</p>
@@ -165,7 +172,14 @@ function ToolDetailDrawer({
               </div>
               <div className="border-t border-[var(--color-border)] pt-3">
                 <p className="text-[10px] font-semibold text-[var(--color-text-muted)] uppercase tracking-wider mb-1.5">Ativação</p>
-                <p className="text-xs text-[var(--color-text-secondary)] leading-relaxed">{tool.suggestedActivation}</p>
+                <p className={cn(
+                  'text-xs leading-relaxed',
+                  tool.suggestedActivation === MESA35_ACTIVATION_UNAVAILABLE
+                    ? 'text-[var(--color-text-muted)] italic'
+                    : 'text-[var(--color-text-secondary)]',
+                )}>
+                  {tool.suggestedActivation}
+                </p>
               </div>
             </div>
 
@@ -459,7 +473,7 @@ function ToolGridCard({ tool, result, onClick }: { tool: Tool; result?: ToolResu
       )}
     >
       <div className="relative h-20 overflow-hidden">
-        <img src={tool.imageUrl} alt={tool.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+        <img src={tool.imageUrl} alt={tool.name} className="w-full h-full object-contain bg-[var(--color-surface-1)] p-1 group-hover:scale-105 transition-transform duration-300" />
         <div className="absolute inset-0 bg-gradient-to-t from-[var(--color-void)]/90 to-transparent" />
         <div className={cn('absolute top-2 right-2 w-2 h-2 rounded-full', styles.dot)} />
         <span className="absolute bottom-1.5 left-2 text-[8px] font-mono text-white/40">{String(tool.sortOrder).padStart(2, '0')}</span>
@@ -810,12 +824,17 @@ function ConnectionStage({ session }: { session: Session }) {
 }
 
 // ─── Stage: Diagnosis ──────────────────────────────────────────
-function DiagnosisStage({ session, toolResults, onToolResultChange }: {
+function DiagnosisStage({ session, toolResults, onToolResultChange, toolsOverride, assetsLoading, chakraItems, selectedChakraIds, onChakraSelectionChange }: {
   session: Session;
   toolResults: ToolResult[];
   onToolResultChange: (toolId: string, patch: Partial<Omit<ToolResult, 'toolId'>>) => void;
+  toolsOverride?: Tool[];
+  assetsLoading?: boolean;
+  chakraItems?: Mesa35ChakraItem[];
+  selectedChakraIds?: string[];
+  onChakraSelectionChange?: (ids: string[]) => void;
 }) {
-  const tools = getToolsByMethodology(session.methodologyId);
+  const tools = toolsOverride ?? getToolsByMethodology(session.methodologyId);
   const [selectedTool, setSelectedTool] = useState<Tool | null>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [filterStatus, setFilterStatus] = useState<string>('all');
@@ -835,6 +854,14 @@ function DiagnosisStage({ session, toolResults, onToolResultChange }: {
   };
 
   const selectedResult = selectedTool ? toolResults.find(r => r.toolId === selectedTool.id) : undefined;
+
+  if (assetsLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full gap-3 py-16">
+        <p className="text-sm text-[var(--color-text-muted)]">A carregar gráficos radiônicos…</p>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -909,7 +936,7 @@ function DiagnosisStage({ session, toolResults, onToolResultChange }: {
                   >
                     <div className={cn('w-2 h-2 rounded-full flex-shrink-0', styles.dot)} />
                     <span className="text-[10px] font-mono text-[var(--color-text-muted)] w-6 flex-shrink-0">{String(tool.sortOrder).padStart(2, '0')}</span>
-                    <img src={tool.imageUrl} alt={tool.name} className="w-8 h-8 rounded-lg object-cover flex-shrink-0" />
+                    <img src={tool.imageUrl} alt={tool.name} className="w-8 h-8 rounded-lg object-contain bg-[var(--color-surface-1)] flex-shrink-0" />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-[var(--color-text-primary)] truncate">{tool.name}</p>
                       <p className="text-xs text-[var(--color-text-muted)] truncate">{tool.description}</p>
@@ -930,6 +957,46 @@ function DiagnosisStage({ session, toolResults, onToolResultChange }: {
             </div>
           )}
         </div>
+
+        {chakraItems && chakraItems.length > 0 && onChakraSelectionChange && (
+          <div className="mt-6 pt-5 border-t border-[var(--color-border)] flex-shrink-0">
+            <h4 className="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider mb-2">
+              Seleção de chakras
+            </h4>
+            <p className="text-xs text-[var(--color-text-muted)] mb-3">
+              Selecione os chakras relevantes para esta sessão (opcional).
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {chakraItems.map(chakra => {
+                const selected = selectedChakraIds?.includes(chakra.id) ?? false;
+                return (
+                  <button
+                    key={chakra.id}
+                    type="button"
+                    onClick={() => {
+                      const current = selectedChakraIds ?? [];
+                      const next = selected
+                        ? current.filter(id => id !== chakra.id)
+                        : [...current, chakra.id];
+                      onChakraSelectionChange(next);
+                    }}
+                    className={cn(
+                      'flex items-center gap-2 px-3 py-2 rounded-xl border text-xs font-medium transition-all',
+                      selected
+                        ? 'border-[var(--color-teal)]/50 bg-[var(--color-teal)]/10 text-[var(--color-teal)]'
+                        : 'border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-1)]',
+                    )}
+                  >
+                    {chakra.imageUrl && (
+                      <img src={chakra.imageUrl} alt="" className="w-5 h-5 rounded object-cover" />
+                    )}
+                    {chakra.name}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
       {selectedTool && (
@@ -967,7 +1034,7 @@ function ActivationCard({ tool, result, onActivate, onSkip, onOpenDetail }: {
       <div className="flex items-start gap-4 p-4">
         {/* Tool image */}
         <div className="relative w-16 h-16 rounded-xl overflow-hidden flex-shrink-0">
-          <img src={tool.imageUrl} alt={tool.name} className="w-full h-full object-cover" />
+          <img src={tool.imageUrl} alt={tool.name} className="w-full h-full object-contain bg-[var(--color-surface-1)] p-1" />
           {isDone && (
             <div className={cn(
               'absolute inset-0 flex items-center justify-center',
@@ -1002,7 +1069,11 @@ function ActivationCard({ tool, result, onActivate, onSkip, onOpenDetail }: {
             )}
           </div>
 
-          <p className="text-xs text-[var(--color-text-secondary)] mt-1.5 leading-relaxed line-clamp-2">{tool.suggestedActivation}</p>
+          <p className="text-xs text-[var(--color-text-secondary)] mt-1.5 leading-relaxed line-clamp-2">
+            {tool.suggestedActivation === MESA35_ACTIVATION_UNAVAILABLE
+              ? <span className="italic text-[var(--color-text-muted)]">{tool.suggestedActivation}</span>
+              : tool.suggestedActivation}
+          </p>
 
           {result?.notes && (
             <div className="mt-2 rounded-lg bg-[var(--color-surface-1)] border border-[var(--color-border)] px-2.5 py-1.5">
@@ -1060,12 +1131,13 @@ function ActivationCard({ tool, result, onActivate, onSkip, onOpenDetail }: {
 }
 
 // ─── Stage: Activations ────────────────────────────────────────
-function ActivationsStage({ session, toolResults, onToolResultChange }: {
+function ActivationsStage({ session, toolResults, onToolResultChange, toolsOverride }: {
   session: Session;
   toolResults: ToolResult[];
   onToolResultChange: (toolId: string, patch: Partial<Omit<ToolResult, 'toolId'>>) => void;
+  toolsOverride?: Tool[];
 }) {
-  const tools = getToolsByMethodology(session.methodologyId);
+  const tools = toolsOverride ?? getToolsByMethodology(session.methodologyId);
   const [selectedTool, setSelectedTool] = useState<Tool | null>(null);
 
   // Only tools that were identified in diagnosis (or already activated there)
@@ -1503,16 +1575,96 @@ export default function WorkspacePage() {
     hawkinsFinal,
     reverbDays,
     fieldValues,
-    setToolResult,
     replaceToolResults,
     setHawkinsInitial,
     setHawkinsFinal,
     setReverbDays,
+    setFieldValue,
     stageCompletion,
     sessionSnapshot,
   } = sessionState;
 
-  const stageCompletionMap: Record<string, boolean> = { ...stageCompletion };
+  const isWorkflowM35 = isMesa35WorkflowSession(session);
+
+  const workflowAdapter = useWorkflowAdapter({
+    session: session ?? { id, specialtySlug: '' },
+    specialtySlug: session?.specialtySlug ?? 'mesa-35',
+    currentNavId: currentStage,
+    enabled: !!session && isWorkflowM35,
+  });
+
+  const mesa35Assets = useMesa35WorkflowAssets(!!session && isWorkflowM35);
+
+  useEffect(() => {
+    if (isWorkflowM35 && workflowAdapter.error) {
+      console.warn(
+        '[mesa35-workflow] Adapter indisponível — fallback para comportamento legado:',
+        workflowAdapter.error,
+      );
+    }
+    if (isWorkflowM35 && mesa35Assets.error) {
+      console.warn(
+        '[mesa35-workflow] Assets indisponíveis — fallback para comportamento legado:',
+        mesa35Assets.error,
+      );
+    }
+  }, [isWorkflowM35, workflowAdapter.error, mesa35Assets.error]);
+
+  const workflowAssetsReady =
+    isWorkflowM35 && mesa35Assets.bundle != null && !mesa35Assets.error;
+
+  const workflowPersistActive =
+    isWorkflowM35
+    && workflowAdapter.adapterContext != null
+    && !workflowAdapter.error;
+
+  const adapterContext = workflowPersistActive ? workflowAdapter.adapterContext : null;
+
+  const workflowStateRef = useRef<WorkflowStateDraft | undefined>(session?.workflowState);
+  useEffect(() => {
+    if (adapterContext?.workflowState) {
+      workflowStateRef.current = adapterContext.workflowState;
+    } else if (session?.workflowState) {
+      workflowStateRef.current = session.workflowState;
+    }
+  }, [session?.workflowState, adapterContext?.workflowState]);
+
+  const selectedChakraIds = useMemo(() => {
+    const field = fieldValues.selected_chakras;
+    return field?.type === 'multi_select' ? field.value : [];
+  }, [fieldValues]);
+
+  const workflowStageCompletion = useMemo(() => {
+    if (!workflowPersistActive || !adapterContext) return null;
+    return prepareWorkflowPersist(
+      session!,
+      adapterContext.adapterSteps,
+      workflowStateRef.current ?? adapterContext.workflowState,
+      {
+        toolResults,
+        fieldValues,
+        hawkinsInitial,
+        hawkinsFinal,
+        reverbDays,
+        currentStageCode: currentStage,
+        intention: session?.intention,
+      },
+    ).stageCompletion;
+  }, [
+    workflowPersistActive,
+    adapterContext,
+    session,
+    toolResults,
+    fieldValues,
+    hawkinsInitial,
+    hawkinsFinal,
+    reverbDays,
+    currentStage,
+  ]);
+
+  const stageCompletionMap: Record<string, boolean> = workflowStageCompletion
+    ? { ...workflowStageCompletion }
+    : { ...stageCompletion };
 
   type WorkspaceDraft = {
     toolResults: ToolResult[];
@@ -1547,6 +1699,62 @@ export default function WorkspacePage() {
       reverbDays: draft?.reverbDays !== undefined ? draft.reverbDays : reverbDays,
       currentStageCode: draft?.currentStageCode ?? currentStage,
     };
+
+    const baseWorkflowState =
+      workflowStateRef.current
+      ?? adapterContext?.workflowState
+      ?? session.workflowState;
+
+    if (workflowPersistActive && adapterContext && baseWorkflowState) {
+      const prepared = prepareWorkflowPersist(
+        session,
+        adapterContext.adapterSteps,
+        baseWorkflowState,
+        { ...d, intention: session.intention },
+      );
+
+      workflowStateRef.current = prepared.workflowState;
+
+      const payload = buildWorkspacePersistPayload(session, {
+        toolResults: prepared.legacy.toolResults,
+        fieldValues: prepared.legacy.fieldValues,
+        hawkinsInitial: prepared.legacy.hawkinsInitial,
+        hawkinsFinal: prepared.legacy.hawkinsFinal,
+        reverbDays: prepared.legacy.reverberationDays,
+        currentStageCode: prepared.legacy.currentStageCode,
+        stageCompletion: prepared.stageCompletion,
+        forceCompleted: opts?.forceCompleted,
+      });
+
+      try {
+        const updated = await updateSession(id, {
+          toolResults: payload.toolResults,
+          fieldValues: payload.fieldValues,
+          hawkinsInitial: prepared.legacy.hawkinsInitial ?? undefined,
+          hawkinsFinal: prepared.legacy.hawkinsFinal ?? undefined,
+          reverberationDays: prepared.legacy.reverberationDays ?? undefined,
+          currentStageCode: prepared.legacy.currentStageCode,
+          workflowState: prepared.workflowState,
+          status: payload.status,
+          completedAt: payload.completedAt,
+        });
+
+        if (!updated) {
+          setSaveError('Não foi possível guardar a sessão.');
+          return false;
+        }
+
+        queryClient.setQueryData(['session', id], updated);
+        await queryClient.invalidateQueries({ queryKey: ['sessions'] });
+        markSaveSuccess();
+        return true;
+      } catch {
+        setSaveError('Erro ao guardar localmente. Tente novamente.');
+        return false;
+      } finally {
+        setIsPersisting(false);
+      }
+    }
 
     const stageCompletionForSave = computeStageCompletion(
       session.methodologyId,
@@ -1591,7 +1799,7 @@ export default function WorkspacePage() {
     }
   }, [
     session, id, toolResults, fieldValues, hawkinsInitial, hawkinsFinal, reverbDays,
-    currentStage, queryClient, markSaveSuccess,
+    currentStage, queryClient, markSaveSuccess, workflowPersistActive, adapterContext,
   ]);
 
   const persistRef = useRef(persistWorkspace);
@@ -1626,15 +1834,63 @@ export default function WorkspacePage() {
     patch: Partial<Omit<ToolResult, 'toolId'>>,
   ) => {
     if (!session) return;
-    const nextTools = applyToolResultPatch(
-      toolResults,
-      toolId,
-      patch,
-      session.methodologyId,
-    );
+
+    const toolMeta = workflowAssetsReady ? mesa35Assets.bundle?.toolByAssetId.get(toolId) : undefined;
+    const enrichedPatch = toolMeta
+      ? {
+          ...patch,
+          toolName: patch.toolName ?? toolMeta.name,
+          toolImageUrl: patch.toolImageUrl ?? toolMeta.imageUrl,
+        }
+      : patch;
+
+    let nextTools: ToolResult[];
+    if (workflowAssetsReady && toolMeta) {
+      const existing = toolResults.find(r => r.toolId === toolId);
+      if (existing) {
+        nextTools = toolResults.map(r =>
+          r.toolId === toolId ? { ...r, ...enrichedPatch } : r,
+        );
+      } else {
+        nextTools = [
+          ...toolResults,
+          {
+            toolId,
+            toolName: toolMeta.name,
+            toolImageUrl: toolMeta.imageUrl,
+            status: 'not_analyzed',
+            ...enrichedPatch,
+          },
+        ];
+      }
+    } else {
+      nextTools = applyToolResultPatch(
+        toolResults,
+        toolId,
+        patch,
+        session.methodologyId,
+      );
+    }
+
     replaceToolResults(nextTools);
     await persistWorkspace({ toolResults: nextTools });
-  }, [session, toolResults, replaceToolResults, persistWorkspace]);
+  }, [
+    session,
+    toolResults,
+    replaceToolResults,
+    persistWorkspace,
+    workflowAssetsReady,
+    mesa35Assets.bundle,
+  ]);
+
+  const handleChakraSelectionChange = useCallback(async (ids: string[]) => {
+    const nextFieldValues: Record<string, FieldValue> = {
+      ...fieldValues,
+      selected_chakras: { type: 'multi_select', value: ids },
+    };
+    setFieldValue('selected_chakras', { type: 'multi_select', value: ids });
+    await persistWorkspace({ fieldValues: nextFieldValues });
+  }, [fieldValues, setFieldValue, persistWorkspace]);
 
   const handleSave = async () => {
     if (!session) return;
@@ -1774,10 +2030,24 @@ export default function WorkspacePage() {
               <ConnectionStage session={session} />
             )}
             {currentStage === 'diagnosis' && (
-              <DiagnosisStage session={session} toolResults={toolResults} onToolResultChange={handleToolResultChange} />
+              <DiagnosisStage
+                session={session}
+                toolResults={toolResults}
+                onToolResultChange={handleToolResultChange}
+                toolsOverride={workflowAssetsReady ? mesa35Assets.bundle?.graphTools : undefined}
+                assetsLoading={isWorkflowM35 && mesa35Assets.isLoading}
+                chakraItems={workflowAssetsReady ? mesa35Assets.bundle?.chakraItems : undefined}
+                selectedChakraIds={workflowAssetsReady ? selectedChakraIds : undefined}
+                onChakraSelectionChange={workflowAssetsReady ? handleChakraSelectionChange : undefined}
+              />
             )}
             {currentStage === 'activations' && (
-              <ActivationsStage session={session} toolResults={toolResults} onToolResultChange={handleToolResultChange} />
+              <ActivationsStage
+                session={session}
+                toolResults={toolResults}
+                onToolResultChange={handleToolResultChange}
+                toolsOverride={workflowAssetsReady ? mesa35Assets.bundle?.graphTools : undefined}
+              />
             )}
             {currentStage === 'closing' && (
               <ClosingStage

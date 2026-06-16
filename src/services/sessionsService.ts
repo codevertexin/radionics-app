@@ -171,6 +171,23 @@ export async function updateSession(id: string, patch: Partial<Session>): Promis
     fieldValues: patch.fieldValues !== undefined
       ? { ...patch.fieldValues }
       : prev.fieldValues,
+    workflowState: patch.workflowState !== undefined
+      ? {
+          ...patch.workflowState,
+          steps: Object.fromEntries(
+            Object.entries(patch.workflowState.steps).map(([code, step]) => [
+              code,
+              {
+                ...step,
+                outputs: step.outputs ? { ...step.outputs } : undefined,
+              },
+            ]),
+          ),
+          legacy: patch.workflowState.legacy
+            ? { ...patch.workflowState.legacy }
+            : undefined,
+        }
+      : prev.workflowState,
     updatedAt: new Date().toISOString(),
   });
   return cloneSession(sessionsStore[idx]);
