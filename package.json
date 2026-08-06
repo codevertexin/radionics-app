@@ -8,7 +8,8 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "typecheck": "tsc -b --noEmit",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "validate:platform-session-f0-f1": "node scripts/validate-platform-session-f0-f1.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.1",
