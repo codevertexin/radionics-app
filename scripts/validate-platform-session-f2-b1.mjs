@@ -18,6 +18,9 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const migrationRel =
   'supabase/migrations/20260807120000_radionics_platform_session_b1_core.sql';
 const migrationPath = path.join(root, migrationRel);
+const grantsRel =
+  'supabase/migrations/20260807124000_radionics_platform_session_b1_grants_hardening.sql';
+const grantsPath = path.join(root, grantsRel);
 
 let passed = 0;
 let failed = 0;
@@ -54,15 +57,22 @@ function hasCreateTableAnywhere(sql, table) {
 }
 
 console.log('\n[validate-platform-session-f2-b1] Static B1 migration checks\n');
-console.log(`Migration: ${migrationRel}\n`);
+console.log(`Core migration: ${migrationRel}`);
+console.log(`Grants migration: ${grantsRel}\n`);
 
-assert(fs.existsSync(migrationPath), 'migration file exists');
+assert(fs.existsSync(migrationPath), 'core migration file exists');
 
 const raw = fs.existsSync(migrationPath)
   ? fs.readFileSync(migrationPath, 'utf8')
   : '';
 const sql = stripSqlComments(raw);
 const lower = sql.toLowerCase();
+
+assert(fs.existsSync(grantsPath), 'grants-hardening migration file exists');
+const grantsRaw = fs.existsSync(grantsPath)
+  ? fs.readFileSync(grantsPath, 'utf8')
+  : '';
+const grantsSql = stripSqlComments(grantsRaw);
 
 // --- Exact B1 tables present ---
 assert(hasCreateTable(sql, 'platform_clients'), 'creates public.platform_clients');
@@ -481,10 +491,103 @@ assert(
   'platform_command_idempotency indexes present',
 );
 
-// --- Authorization marker ---
+// --- Authorization marker (core) ---
 assert(
   /RADIONICS-F2-B1-LOCAL-AUTH-20260807-01/.test(raw),
-  'authorization id recorded in migration header',
+  'authorization id recorded in core migration header',
+);
+
+// --- Grants hardening migration (additive; original core unchanged) ---
+console.log('\n[validate-platform-session-f2-b1] Grants hardening checks\n');
+
+assert(
+  /RADIONICS-F2-B1-DEV-GRANTS-CORRECTION-20260807-01/.test(grantsRaw),
+  'grants correction authorization recorded in grants migration header',
+);
+assert(
+  !/\bbegin\b/i.test(grantsSql) && !/\bcommit\b/i.test(grantsSql),
+  'grants migration has no BEGIN/COMMIT wrapper',
+);
+assert(
+  !/\bcreate\s+table\b/i.test(grantsSql),
+  'grants migration creates no additional tables',
+);
+assert(
+  !/\bservice_role\b/i.test(grantsSql),
+  'grants migration does not reference service_role (no revoke/modify)',
+);
+
+const b1GrantTables = [
+  'platform_clients',
+  'platform_sessions',
+  'platform_command_idempotency',
+];
+
+for (const table of b1GrantTables) {
+  assert(
+    new RegExp(
+      `revoke\\s+all\\s+privileges\\s+on\\s+table\\s+public\\.${table}\\s+from\\s+public\\s*,\\s*anon\\s*,\\s*authenticated\\s*;`,
+      'i',
+    ).test(grantsSql),
+    `revoke all on ${table} from public, anon, authenticated`,
+  );
+}
+
+assert(
+  /grant\s+select\s*,\s*insert\s*,\s*update\s*,\s*delete\s+on\s+table\s+public\.platform_clients\s+to\s+authenticated\s*;/i.test(
+    grantsSql,
+  ),
+  'authenticated GRANT on platform_clients = SELECT, INSERT, UPDATE, DELETE',
+);
+assert(
+  /grant\s+select\s*,\s*insert\s+on\s+table\s+public\.platform_sessions\s+to\s+authenticated\s*;/i.test(
+    grantsSql,
+  ),
+  'authenticated GRANT on platform_sessions = SELECT, INSERT',
+);
+assert(
+  /grant\s+select\s+on\s+table\s+public\.platform_command_idempotency\s+to\s+authenticated\s*;/i.test(
+    grantsSql,
+  ),
+  'authenticated GRANT on platform_command_idempotency = SELECT',
+);
+
+assert(
+  !/grant\s+[^;]*\bto\s+anon\b/i.test(grantsSql),
+  'anon receives no GRANT in grants-hardening migration',
+);
+assert(
+  !/grant\s+[^;]*\btruncate\b/i.test(grantsSql) &&
+    !/grant\s+[^;]*\btrigger\b/i.test(grantsSql) &&
+    !/grant\s+[^;]*\breferences\b/i.test(grantsSql),
+  'authenticated is not granted TRUNCATE, TRIGGER, or REFERENCES on B1 tables',
+);
+
+// Correct live constraint total on B1 tables is 38 (not a prior miscount of 37).
+// Static composition: 32 named CONSTRAINT clauses + 3 PRIMARY KEY + 3 REFERENCES auth.users.
+const namedConstraintCount = (
+  sql.match(
+    /\bconstraint\s+platform_(clients|sessions|command_idempotency)_[a-z0-9_]+/gi,
+  ) || []
+).length;
+const primaryKeyCount = (sql.match(/\bprimary\s+key\b/gi) || []).length;
+const authUsersFkCount = (sql.match(/references\s+auth\.users\s*\(/gi) || [])
+  .length;
+assert(
+  namedConstraintCount === 32,
+  `core migration declares 32 named platform_* constraints (found ${namedConstraintCount})`,
+);
+assert(
+  primaryKeyCount === 3,
+  `core migration declares 3 PRIMARY KEY clauses (found ${primaryKeyCount})`,
+);
+assert(
+  authUsersFkCount === 3,
+  `core migration declares 3 REFERENCES auth.users FKs (found ${authUsersFkCount})`,
+);
+assert(
+  namedConstraintCount + primaryKeyCount + authUsersFkCount === 38,
+  'B1 constraint composition totals 38 (32 named + 3 PK + 3 auth.users FK)',
 );
 
 console.log('\n────────────────────────────────────────');
