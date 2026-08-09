@@ -10,7 +10,8 @@
     "typecheck": "tsc -b --noEmit",
     "lint": "tsc --noEmit",
     "validate:platform-session-f0-f1": "node scripts/validate-platform-session-f0-f1.mjs",
-    "validate:platform-session-f2-b1": "node scripts/validate-platform-session-f2-b1.mjs"
+    "validate:platform-session-f2-b1": "node scripts/validate-platform-session-f2-b1.mjs",
+    "validate:platform-session-f2-b2": "node scripts/validate-platform-session-f2-b2.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.1",
