@@ -16,6 +16,30 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const migrationRel =
   'supabase/migrations/20260809170000_radionics_platform_session_b2_testimony_plan_rpcs.sql';
 const migrationPath = path.join(root, migrationRel);
+const grantsRel =
+  'supabase/migrations/20260809173000_radionics_platform_session_b2_rpc_grants_hardening.sql';
+const grantsPath = path.join(root, grantsRel);
+
+const b2PublicRpcs = [
+  {
+    name: 'platform_patch_session_draft_context',
+    signature:
+      'platform_patch_session_draft_context(uuid, text, text, timestamptz, text, text, boolean, boolean, boolean)',
+  },
+  {
+    name: 'platform_upsert_session_plan_item',
+    signature:
+      'platform_upsert_session_plan_item(uuid, uuid, text, integer, text, uuid)',
+  },
+  {
+    name: 'platform_delete_session_plan_item',
+    signature: 'platform_delete_session_plan_item(uuid, uuid, text)',
+  },
+  {
+    name: 'platform_start_session',
+    signature: 'platform_start_session(uuid, text)',
+  },
+];
 
 let passed = 0;
 let failed = 0;
@@ -50,7 +74,8 @@ function hasCreateTableAnywhere(sql, table) {
 }
 
 console.log('\n[validate-platform-session-f2-b2] Static B2 migration checks\n');
-console.log(`Migration: ${migrationRel}\n`);
+console.log(`Core migration: ${migrationRel}`);
+console.log(`RPC grants migration: ${grantsRel}\n`);
 
 assert(fs.existsSync(migrationPath), 'B2 migration file exists');
 
@@ -58,6 +83,12 @@ const raw = fs.existsSync(migrationPath)
   ? fs.readFileSync(migrationPath, 'utf8')
   : '';
 const sql = stripSqlComments(raw);
+
+assert(fs.existsSync(grantsPath), 'B2 RPC grants hardening migration exists');
+const grantsRaw = fs.existsSync(grantsPath)
+  ? fs.readFileSync(grantsPath, 'utf8')
+  : '';
+const grantsSql = stripSqlComments(grantsRaw);
 
 assert(
   /RADIONICS-F2-B2-LOCAL-AUTH-20260809-01/.test(raw),
@@ -185,13 +216,7 @@ assert(
   'no TRUNCATE/TRIGGER/REFERENCES grants',
 );
 
-const rpcs = [
-  'platform_patch_session_draft_context',
-  'platform_upsert_session_plan_item',
-  'platform_delete_session_plan_item',
-  'platform_start_session',
-];
-for (const name of rpcs) {
+for (const { name } of b2PublicRpcs) {
   assert(
     new RegExp(
       `create\\s+or\\s+replace\\s+function\\s+public\\.${name}\\b`,
@@ -307,6 +332,62 @@ for (const name of incompleteLifecycle) {
 assert(
   !/revoke\s+[^;]*service_role/i.test(sql),
   'does not revoke service_role privileges',
+);
+
+// --- RPC grants hardening (additive; core B2 migration unchanged) ---
+console.log('\n[validate-platform-session-f2-b2] RPC grants hardening checks\n');
+
+assert(
+  /\bbegin\s*;/i.test(grantsSql) && /\bcommit\s*;/i.test(grantsSql),
+  'RPC grants migration has BEGIN/COMMIT wrapper',
+);
+assert(
+  !/\bcreate\s+table\b/i.test(grantsSql) &&
+    !/\balter\s+table\b/i.test(grantsSql) &&
+    !/\bdrop\s+table\b/i.test(grantsSql),
+  'RPC grants migration does not create/drop/alter tables',
+);
+assert(
+  !/\binsert\s+into\b/i.test(grantsSql) &&
+    !/\bupdate\s+\w+/i.test(grantsSql) &&
+    !/\bdelete\s+from\b/i.test(grantsSql),
+  'RPC grants migration has no data-changing DML',
+);
+assert(
+  !/\bservice_role\b/i.test(grantsSql),
+  'RPC grants migration does not reference service_role',
+);
+assert(
+  !/grant\s+[^;]*\bto\s+anon\b/i.test(grantsSql),
+  'RPC grants migration grants execute only to authenticated (no anon GRANT)',
+);
+
+for (const { name, signature } of b2PublicRpcs) {
+  const escaped = signature.replace(/[()]/g, '\\$&').replace(/,/g, '\\s*,\\s*');
+  assert(
+    new RegExp(
+      `revoke\\s+all\\s+on\\s+function\\s+public\\.${escaped}\\s+from\\s+public\\s*,\\s*anon\\s*,\\s*authenticated\\s*;`,
+      'i',
+    ).test(grantsSql),
+    `revokes all on ${name} from public, anon, authenticated`,
+  );
+  assert(
+    new RegExp(
+      `grant\\s+execute\\s+on\\s+function\\s+public\\.${escaped}\\s+to\\s+authenticated\\s*;`,
+      'i',
+    ).test(grantsSql),
+    `grants execute on ${name} to authenticated`,
+  );
+}
+
+const grantsFnRefs = [
+  ...grantsSql.matchAll(/function\s+public\.([a-z0-9_]+)\s*\(/gi),
+].map((m) => m[1].toLowerCase());
+const allowedFnNames = new Set(b2PublicRpcs.map((r) => r.name));
+assert(
+  grantsFnRefs.length === 8 &&
+    grantsFnRefs.every((name) => allowedFnNames.has(name)),
+  'RPC grants migration references only the four B2 public RPCs',
 );
 
 console.log('\n────────────────────────────────────────');
