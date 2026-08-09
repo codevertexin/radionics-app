@@ -22,7 +22,7 @@ B3 is the next **persistence** unit after B2. It should materialize **methodolog
 
 This document is **proposed**, not approved for implementation. No SQL, application code, migrations, Supabase writes, UI, services, or tests were implemented in producing it.
 
-**Label:** `B3 READINESS PROPOSED — NOT AUTHORIZED FOR IMPLEMENTATION`
+**Label:** `B3 READINESS APPROVED — NOT AUTHORIZED FOR IMPLEMENTATION`
 
 ---
 
@@ -410,8 +410,6 @@ Static / local (no remote write required for docs; live tests only after apply a
 
 **No Product document contradiction requiring Product edits was found** for B3 scope: OD-F2-6, PD-002, Product 03 one-active rules, and F1 `activateExecution` align.
 
-**B3 READINESS APPROVED — NOT AUTHORIZED FOR IMPLEMENTATION**
-
 ---
 
 ## 15. Relationship to B1 / B2 (checklist)
@@ -460,4 +458,4 @@ This readiness pass produced **documentation only**.
 
 ## 18. Stop line
 
-**B3 READINESS PROPOSED FOR OWNER REVIEW — NOT AUTHORIZED FOR IMPLEMENTATION**
+**B3 READINESS APPROVED — NOT AUTHORIZED FOR IMPLEMENTATION**
