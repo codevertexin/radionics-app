@@ -11,31 +11,6 @@
 
 ---
 
-Registar:
-- Apply manual em Supabase Development sob RADIONICS-F2-B4A-DEV-APPLY-AUTH-20260810-01
-- Commit aplicado: 2ff8718
-- Primeira verificação read-only: 6/6 PASS
-- Segunda verificação read-only: 7/7 PASS
-- constraints=22
-- same-session execution FKs=2
-- RPC execute authenticated functions=3
-- dangerous grants=0
-- unexpected client RPC execute=0
-- note guard triggers=1
-- timeline write policies=0
-- rows empty: notes=0, events=0
-
-Confirmar:
-- sem Production
-- sem dados inseridos
-- sem UI/services
-- sem transcript/audio/live spoken bar
-- sem contributions/archive/report
-- sem platform_methodologies
-- sem push/deploy
-
-----
-
 ## 1. Executive verdict
 
 B4A local implementation prepared under `RADIONICS-F2-B4A-LOCAL-AUTH-20260810-01` and committed as `2ff8718`.
