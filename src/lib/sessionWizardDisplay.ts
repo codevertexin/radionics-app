@@ -43,7 +43,7 @@ export function getLegacyTemplateDisplay(
   switch (templateId) {
     case 'tmpl-rad35-official':
       return {
-        title: 'Sessão Completa',
+        title: 'Sessão Completa (modelo clássico)',
         description: internalDescription?.trim() || COMPLETE_DESCRIPTION,
       };
     case 'tmpl-rad35-express':

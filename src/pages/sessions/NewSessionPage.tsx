@@ -15,6 +15,7 @@ import {
   isWorkflowWizardSelection,
   type SessionWizardSelection,
 } from '@/lib/sessionWizardSelection';
+import { getWizardLegacyTemplates } from '@/lib/sessionWizardTemplates';
 import { SESSION_MODE_LABELS, cn } from '@/lib/utils';
 import { initializeWorkflowStateForSession } from '@/lib/workflow-adapter/initializeWorkflowState';
 import { listClients } from '@/services/clientsService';
@@ -80,6 +81,15 @@ export default function NewSessionPage() {
     if (!selectedSpecialty) return [];
     return getActiveTemplatesForSpecialty(selectedSpecialty);
   }, [selectedSpecialty]);
+
+  const wizardLegacyTemplates = useMemo(() => {
+    if (!selectedSpecialty) return [];
+    return getWizardLegacyTemplates(
+      selectedSpecialty,
+      availableTemplates,
+      workflowTemplates,
+    );
+  }, [selectedSpecialty, availableTemplates, workflowTemplates]);
 
   const stepIndex = STEPS.findIndex(s => s.id === step);
 
@@ -164,7 +174,7 @@ export default function NewSessionPage() {
 
   const canProceedFromClient = Boolean(selectedClient);
   const hasWorkflows = workflowTemplates.length > 0;
-  const hasLegacyTemplates = availableTemplates.length > 0;
+  const hasLegacyTemplates = wizardLegacyTemplates.length > 0;
   const hasAnyPlan = hasWorkflows || hasLegacyTemplates;
 
   return (
@@ -341,7 +351,7 @@ export default function NewSessionPage() {
                         Outros tipos
                       </h3>
                     </div>
-                    {availableTemplates.map(tmpl => {
+                    {wizardLegacyTemplates.map(tmpl => {
                       const display = getLegacyTemplateDisplay(tmpl.id, tmpl.name, tmpl.description);
                       return (
                       <button
