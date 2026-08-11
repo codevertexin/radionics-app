@@ -16,7 +16,8 @@
     "validate:platform-session-f2-b4a": "node scripts/validate-platform-session-f2-b4a.mjs",
     "validate:platform-session-f2-b4b": "node scripts/validate-platform-session-f2-b4b.mjs",
     "validate:platform-session-f2-b4c": "node scripts/validate-platform-session-f2-b4c.mjs",
-    "validate:platform-session-f2-b5": "node scripts/validate-platform-session-f2-b5.mjs"
+    "validate:platform-session-f2-b5": "node scripts/validate-platform-session-f2-b5.mjs",
+    "validate:platform-session-f2-b6": "node scripts/validate-platform-session-f2-b6.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.1",
