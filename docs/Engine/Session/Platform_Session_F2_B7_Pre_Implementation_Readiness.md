@@ -1,9 +1,9 @@
 # Platform Session F2 — Batch B7 Pre-Implementation Readiness
 
-**Status:** `PROPOSED FOR OWNER REVIEW / NOT AUTHORIZED FOR IMPLEMENTATION`  
-**Date:** 2026-08-12  
-**Scope:** Documentation / readiness only — Batch **B7** (final F2 persistence **integration / closure** after B1–B6)  
-**Depends on:** F2 design baseline v1.2; B1–B6 local artifacts prepared (apply/verification status per batch reports)  
+**Status:** `PROPOSED FOR OWNER REVIEW / NOT AUTHORIZED FOR IMPLEMENTATION`
+**Date:** 2026-08-12
+**Scope:** Documentation / readiness only — Batch **B7** (final F2 persistence **integration / closure** after B1–B6)
+**Depends on:** F2 design baseline v1.2; B1–B6 local artifacts prepared (apply/verification status per batch reports)
 **Does not authorize:** SQL, migrations, Supabase writes, UI, services, B8+/F3 wiring, Production/apply, `platform_methodologies`, commit, push, or deploy
 
 ---
@@ -12,18 +12,18 @@
 
 B7 is the **final F2 persistence integration and readiness-closure** unit after domain batches **B1–B6**. It should **not** introduce new domain tables or therapeutic behaviour. It should instead:
 
-1. **Align contracts** across B1–B6 (naming, ownership, RPC-only writes, SELECT-only grants, same-session FKs, immutability boundaries).  
-2. Publish a **final validation / acceptance matrix** for declaring F2 persistence “locally complete” and “Dev-applied complete” under separate authorizations.  
-3. Plan **generated Supabase/TypeScript types** (if Owner requires compile-time `Database` coverage) without implementing F3 repositories.  
-4. Clarify **repository/service integration boundaries** (F3 / Experience own wiring; B7 only defines the seam).  
-5. Re-review **read/write posture** and **migration dependency order**.  
+1. **Align contracts** across B1–B6 (naming, ownership, RPC-only writes, SELECT-only grants, same-session FKs, immutability boundaries).
+2. Publish a **final validation / acceptance matrix** for declaring F2 persistence “locally complete” and “Dev-applied complete” under separate authorizations.
+3. Plan **generated Supabase/TypeScript types** (if Owner requires compile-time `Database` coverage) without implementing F3 repositories.
+4. Clarify **repository/service integration boundaries** (F3 / Experience own wiring; B7 only defines the seam).
+5. Re-review **read/write posture** and **migration dependency order**.
 6. Optionally propose **minor hardening only** (indexes, grant consistency, metadata comments, types generation script) — **no** new domain entities unless Owner explicitly approves a narrow hardening item.
 
 **Product / engine framing:**
 
-- Archive ≠ template ≠ projection ≠ approved rendition (PD-009; B5/B6).  
-- Session lifecycle ⊥ report lifecycle (F1).  
-- Catalogue authority remains **`radionics_specialties`**. **No** `platform_methodologies`.  
+- Archive ≠ template ≠ projection ≠ approved rendition (PD-009; B5/B6).
+- Session lifecycle ⊥ report lifecycle (F1).
+- Catalogue authority remains **`radionics_specialties`**. **No** `platform_methodologies`.
 - F2 ends at persistence primitives + validators + types plan; **B8 is out of F2** (F3 repository/mock parity).
 
 **Write posture for any later B7 local work (proposed):** documentation + optional additive hardening migration + meta-validator + types generation plan/script — still **RPC-only** domain writes; **no** UI/services; **no** Production.
@@ -54,14 +54,14 @@ This document is a **proposed design baseline** for Owner review. It does **not*
 
 ### 3.1 In scope (proposed)
 
-1. **Contract alignment checklist** across B1–B6 (tables, RPCs, immutability, grants).  
-2. **Final validation matrix** and acceptance gates (static + post-apply read-only + F0/F1).  
-3. **Generated types plan** (`supabase gen types` or equivalent → `Database` types location/ownership).  
-4. **Repository/service boundaries** — what F3 may consume; what B7 must not implement.  
-5. **Read/write posture review** — SELECT-only tables; SECURITY DEFINER RPCs; no anon EXECUTE.  
-6. **Migration dependency/order review** — timestamp order B1→B6; additive FK targets.  
-7. **Optional minor hardening catalogue** (indexes/grants/comments/types script) — Owner-gated.  
-8. **Owner decisions OD-B7-1…N** and separate local / Dev-apply authorization requirements.  
+1. **Contract alignment checklist** across B1–B6 (tables, RPCs, immutability, grants).
+2. **Final validation matrix** and acceptance gates (static + post-apply read-only + F0/F1).
+3. **Generated types plan** (`supabase gen types` or equivalent → `Database` types location/ownership).
+4. **Repository/service boundaries** — what F3 may consume; what B7 must not implement.
+5. **Read/write posture review** — SELECT-only tables; SECURITY DEFINER RPCs; no anon EXECUTE.
+6. **Migration dependency/order review** — timestamp order B1→B6; additive FK targets.
+7. **Optional minor hardening catalogue** (indexes/grants/comments/types script) — Owner-gated.
+8. **Owner decisions OD-B7-1…N** and separate local / Dev-apply authorization requirements.
 9. **F2 closure criteria** — when F2 persistence may be labeled complete (local vs Dev-applied).
 
 ### 3.2 Explicitly out of scope
@@ -98,15 +98,15 @@ This document is a **proposed design baseline** for Owner review. It does **not*
 
 ### 4.2 Cross-cutting invariants (must remain true)
 
-1. **Ownership:** `therapist_id` + `UNIQUE (id, therapist_id)` + composite session FKs.  
-2. **Writes:** authenticated **SELECT only** on domain tables; mutations via **narrow SECURITY DEFINER RPCs**.  
-3. **Idempotency:** B2 pending-claim helpers for mutating RPCs.  
-4. **Same-session integrity:** optional artifact FKs include `session_id` where cross-link risk exists.  
-5. **Catalogue:** `specialty_id` → `radionics_specialties` only; **no** `platform_methodologies`.  
-6. **Opaque jsonb** for methodology state, contributions, template config, envelopes, sealed_content — no therapeutic typed columns.  
-7. **PD-009:** sealed archive `report_template_authority` always NULL; templates never rewrite archives; approved renditions never rewrite archives.  
-8. **Independence:** session lifecycle ≠ report lifecycle; seal ≠ auto-report; complete ≠ approve.  
-9. **Privacy defaults:** private notes / full transcript never auto-project; transcript private work material.  
+1. **Ownership:** `therapist_id` + `UNIQUE (id, therapist_id)` + composite session FKs.
+2. **Writes:** authenticated **SELECT only** on domain tables; mutations via **narrow SECURITY DEFINER RPCs**.
+3. **Idempotency:** B2 pending-claim helpers for mutating RPCs.
+4. **Same-session integrity:** optional artifact FKs include `session_id` where cross-link risk exists.
+5. **Catalogue:** `specialty_id` → `radionics_specialties` only; **no** `platform_methodologies`.
+6. **Opaque jsonb** for methodology state, contributions, template config, envelopes, sealed_content — no therapeutic typed columns.
+7. **PD-009:** sealed archive `report_template_authority` always NULL; templates never rewrite archives; approved renditions never rewrite archives.
+8. **Independence:** session lifecycle ≠ report lifecycle; seal ≠ auto-report; complete ≠ approve.
+9. **Privacy defaults:** private notes / full transcript never auto-project; transcript private work material.
 10. **Immutability triggers:** sealed archives + approved renditions reject UPDATE/DELETE.
 
 ### 4.3 Alignment gaps B7 should verify (not invent domain)
@@ -143,18 +143,18 @@ This document is a **proposed design baseline** for Owner review. It does **not*
 
 ### 5.2 Apply order (when authorized)
 
-1. Apply strictly in timestamp order on Development.  
-2. Fail closed if any prerequisite batch missing.  
-3. Post-apply: run per-batch verification packs + B7 closure matrix.  
+1. Apply strictly in timestamp order on Development.
+2. Fail closed if any prerequisite batch missing.
+3. Post-apply: run per-batch verification packs + B7 closure matrix.
 4. Production: **never** from B7 readiness; requires separate Production authorization after Dev acceptance.
 
 ### 5.3 Optional B7 additive migration (only if OD-B7 approves)
 
 Allowed contents (examples):
 
-- Missing indexes for known hot paths  
-- Grant revoke/re-grant consistency  
-- Comments / schema_version documentation  
+- Missing indexes for known hot paths
+- Grant revoke/re-grant consistency
+- Comments / schema_version documentation
 - **Not:** new domain tables, new therapeutic columns, archive mutation RPCs, PDF/sharing tables
 
 ---
@@ -163,7 +163,7 @@ Allowed contents (examples):
 
 ### 6.1 Current state
 
-- F0/F1 domain types live under `src/platform/session/**` (no Supabase imports).  
+- F0/F1 domain types live under `src/platform/session/**` (no Supabase imports).
 - Generated `Database` types for `platform_*` F2 tables are **not** assumed present in app `src` (B7 must confirm at implementation time).
 
 ### 6.2 Proposed plan (Owner-gated)
@@ -230,11 +230,11 @@ B8 / F3                                ← repositories implementing interfaces;
 
 ### 8.2 B7 review checklist
 
-1. No `GRANT INSERT/UPDATE/DELETE` on B2–B6 domain tables to authenticated.  
-2. No `GRANT EXECUTE` to `anon` / `public` on platform RPCs.  
-3. No `TRUNCATE` / `TRIGGER` / `REFERENCES` to authenticated.  
-4. Immutability triggers present for sealed archives + approved renditions.  
-5. No archive mutation / PDF / share RPCs in F2 surface.  
+1. No `GRANT INSERT/UPDATE/DELETE` on B2–B6 domain tables to authenticated.
+2. No `GRANT EXECUTE` to `anon` / `public` on platform RPCs.
+3. No `TRUNCATE` / `TRIGGER` / `REFERENCES` to authenticated.
+4. Immutability triggers present for sealed archives + approved renditions.
+5. No archive mutation / PDF / share RPCs in F2 surface.
 6. B1 clients/sessions grant exceptions remain intentional and documented.
 
 ---
@@ -309,12 +309,12 @@ B8 / F3                                ← repositories implementing interfaces;
 
 Suggested physical order (**still not authorized**):
 
-1. Inventory B1–B6 artifacts vs this alignment checklist; note apply/verification status.  
-2. Create `scripts/validate-platform-session-f2-b7.mjs` meta-validator + `package.json` script.  
-3. Optionally additive hardening migration (indexes/grants only) if OD-B7-5 and gaps exist.  
-4. Types generation plan; generate only when schema source authorized.  
-5. Local B7 implementation report with closure labels.  
-6. Separate Owner auth for any Development apply of B7 hardening.  
+1. Inventory B1–B6 artifacts vs this alignment checklist; note apply/verification status.
+2. Create `scripts/validate-platform-session-f2-b7.mjs` meta-validator + `package.json` script.
+3. Optionally additive hardening migration (indexes/grants only) if OD-B7-5 and gaps exist.
+4. Types generation plan; generate only when schema source authorized.
+5. Local B7 implementation report with closure labels.
+6. Separate Owner auth for any Development apply of B7 hardening.
 7. Hand-off to B8/F3 only after Owner acceptance — **not** part of B7.
 
 **Batches clearly marked:**
@@ -333,14 +333,14 @@ Suggested physical order (**still not authorized**):
 
 This task creates **documentation only** (this readiness file).
 
-- **No** SQL objects created or altered  
-- **No** migrations added or modified  
-- **No** code changes  
-- **No** Supabase connections or writes  
-- **No** UI, services, tests, or methodology behaviour changes  
-- **No** Product / AGENTS / F2 v1.2 / B1–B6 edits  
-- **No** B7 implementation started  
-- **No** commit / push / deploy  
+- **No** SQL objects created or altered
+- **No** migrations added or modified
+- **No** code changes
+- **No** Supabase connections or writes
+- **No** UI, services, tests, or methodology behaviour changes
+- **No** Product / AGENTS / F2 v1.2 / B1–B6 edits
+- **No** B7 implementation started
+- **No** commit / push / deploy
 
 ---
 
