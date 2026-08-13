@@ -39,7 +39,7 @@ B7 local closure prepared under `RADIONICS-F2-B7-LOCAL-AUTH-20260812-01`:
 | `docs/Engine/Session/Platform_Session_F2_B7_Local_Implementation_Report.md` | **Created** (this file) |
 | `package.json` | **Modified** — added `validate:platform-session-f2-b7` |
 
-**Not created:** any `supabase/migrations/*b7*.sql`  
+**Not created:** any `supabase/migrations/*b7*.sql`
 **Not modified:** B1–B6 migrations, Product/MAP docs, AGENTS, UI, services.
 
 ---
