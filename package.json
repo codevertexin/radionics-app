@@ -18,7 +18,8 @@
     "validate:platform-session-f2-b4c": "node scripts/validate-platform-session-f2-b4c.mjs",
     "validate:platform-session-f2-b5": "node scripts/validate-platform-session-f2-b5.mjs",
     "validate:platform-session-f2-b6": "node scripts/validate-platform-session-f2-b6.mjs",
-    "validate:platform-session-f2-b7": "node scripts/validate-platform-session-f2-b7.mjs"
+    "validate:platform-session-f2-b7": "node scripts/validate-platform-session-f2-b7.mjs",
+    "validate:platform-therapist-setup": "node scripts/validate-platform-therapist-setup.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.1",
