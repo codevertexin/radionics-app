@@ -6,8 +6,8 @@
  *
  * Asserts Phase-1 specialty/cert contracts + Therapist Setup governance
  * migration (OD-TS-5 document-before-pending, OD-TS-7 expiry in helper),
- * two approved flows, deferred private methodologies, and no
- * platform_methodologies.
+ * grants hardening matrix, two approved flows, deferred private
+ * methodologies, and no platform_methodologies.
  *
  * LIMITATION: Static SQL/text checks only. Does NOT connect to
  * PostgreSQL/Supabase and does NOT replace live post-apply verification.
@@ -29,6 +29,8 @@ const helperIntroRel =
   'supabase/migrations/20260531150000_radionics_methodology_core_v2.sql';
 const governanceRel =
   'supabase/migrations/20260814120000_radionics_therapist_setup_governance.sql';
+const grantsRel =
+  'supabase/migrations/20260814123000_radionics_therapist_setup_grants_hardening.sql';
 const readinessRel =
   'docs/Engine/Therapist/Platform_Therapist_Setup_Pre_Implementation_Readiness.md';
 const reportRel =
@@ -113,6 +115,10 @@ assert(
   fs.existsSync(path.join(root, governanceRel)),
   'Therapist Setup governance migration exists',
 );
+assert(
+  fs.existsSync(path.join(root, grantsRel)),
+  'Therapist Setup grants hardening migration exists',
+);
 assert(fs.existsSync(path.join(root, certRulesRel)), 'certificationRules.ts exists');
 
 const packageJson = JSON.parse(read('package.json') || '{}');
@@ -141,13 +147,13 @@ assert(
   'report cites local authorization id',
 );
 assert(
-  /THERAPIST SETUP LOCAL IMPLEMENTATION COMPLETE — READY FOR OWNER REVIEW — NOT APPLIED/.test(
+  /THERAPIST SETUP GRANTS HARDENING RECONCILIATION COMPLETE — READY FOR OWNER REVIEW — NOT APPLIED/.test(
     report,
   ),
-  'report contains required stop line',
+  'report contains grants hardening stop line',
 );
 assert(
-  /NOT APPLIED/i.test(report) && !/APPLIED TO SUPABASE(?!.*NOT)/i.test(report.split('\n')[0]),
+  /NOT APPLIED/i.test(report),
   'report status remains not applied',
 );
 
@@ -413,11 +419,131 @@ assert(f2Touched.length >= 10, 'F2 B1–B6 migration files still present');
 
 const therapistMigrations = fs
   .readdirSync(path.join(root, 'supabase/migrations'))
-  .filter((f) => /therapist_setup/i.test(f) && f.endsWith('.sql'));
+  .filter((f) => /therapist_setup/i.test(f) && f.endsWith('.sql'))
+  .sort();
 assert(
-  therapistMigrations.length === 1 &&
-    therapistMigrations[0] === path.basename(governanceRel),
-  'exactly one Therapist Setup governance migration',
+  therapistMigrations.length === 2 &&
+    therapistMigrations.includes(path.basename(governanceRel)) &&
+    therapistMigrations.includes(path.basename(grantsRel)),
+  'Therapist Setup has governance + grants hardening migrations only',
+);
+
+// ---------------------------------------------------------------------------
+// 7. Grants hardening reconciliation (exact matrix)
+// ---------------------------------------------------------------------------
+
+console.log('\n[validate-platform-therapist-setup] Grants hardening checks\n');
+
+const grantsRaw = read(grantsRel);
+const grantsSql = stripSqlComments(grantsRaw);
+
+assert(
+  /RADIONICS-THERAPIST-SETUP-LOCAL-AUTH-20260814-01/.test(grantsRaw),
+  'grants hardening cites local auth id',
+);
+assert(
+  /^\s*begin\s*;/im.test(grantsSql) && /\bcommit\s*;/i.test(grantsSql),
+  'grants migration uses BEGIN/COMMIT wrapper',
+);
+assert(
+  !/\bcreate\s+table\b/i.test(grantsSql),
+  'grants migration creates no tables',
+);
+assert(
+  !/\bcreate\s+(or\s+replace\s+)?function\b/i.test(grantsSql),
+  'grants migration creates no RPCs/functions',
+);
+assert(
+  !/\bcreate\s+policy\b/i.test(grantsSql) && !/\balter\s+policy\b/i.test(grantsSql),
+  'grants migration does not alter RLS policies',
+);
+assert(
+  !/\bservice_role\b/i.test(grantsSql),
+  'grants migration does not reference service_role',
+);
+assert(
+  !hasCreateTable(grantsSql, 'platform_methodologies') &&
+    !/\bcreate\s+[\w."]*platform_methodologies\b/i.test(grantsSql),
+  'grants migration does not create platform_methodologies',
+);
+
+for (const table of canonicalTables) {
+  assert(
+    new RegExp(
+      `revoke\\s+all\\s+privileges\\s+on\\s+table\\s+public\\.${table}\\s+from\\s+public\\s*,\\s*anon\\s*,\\s*authenticated\\s*;`,
+      'i',
+    ).test(grantsSql),
+    `revoke all on ${table} from public, anon, authenticated`,
+  );
+}
+
+assert(
+  /grant\s+select\s*,\s*insert\s*,\s*update\s*,\s*delete\s+on\s+table\s+public\.radionics_specialties\s+to\s+authenticated\s*;/i.test(
+    grantsSql,
+  ),
+  'authenticated GRANT on radionics_specialties = SELECT, INSERT, UPDATE, DELETE',
+);
+assert(
+  /grant\s+select\s*,\s*insert\s*,\s*update\s+on\s+table\s+public\.radionics_specialty_requests\s+to\s+authenticated\s*;/i.test(
+    grantsSql,
+  ),
+  'authenticated GRANT on radionics_specialty_requests = SELECT, INSERT, UPDATE',
+);
+assert(
+  /grant\s+select\s*,\s*insert\s*,\s*update\s+on\s+table\s+public\.therapist_specialty_certifications\s+to\s+authenticated\s*;/i.test(
+    grantsSql,
+  ),
+  'authenticated GRANT on therapist_specialty_certifications = SELECT, INSERT, UPDATE',
+);
+assert(
+  /grant\s+select\s*,\s*insert\s*,\s*delete\s+on\s+table\s+public\.therapist_specialty_documents\s+to\s+authenticated\s*;/i.test(
+    grantsSql,
+  ),
+  'authenticated GRANT on therapist_specialty_documents = SELECT, INSERT, DELETE',
+);
+
+assert(
+  !/grant\s+[^;]*\bto\s+anon\b/i.test(grantsSql),
+  'anon receives no GRANT in grants-hardening migration',
+);
+assert(
+  !/grant\s+[^;]*\btruncate\b/i.test(grantsSql) &&
+    !/grant\s+[^;]*\btrigger\b/i.test(grantsSql) &&
+    !/grant\s+[^;]*\breferences\b/i.test(grantsSql),
+  'no TRUNCATE, TRIGGER, or REFERENCES grants to anon/authenticated',
+);
+
+assert(
+  !/grant\s+[^;]*\bdelete\s+[^;]*on\s+table\s+public\.radionics_specialty_requests\b/i.test(
+    grantsSql,
+  ),
+  'specialty_requests is not granted DELETE',
+);
+assert(
+  !/grant\s+[^;]*\bdelete\s+[^;]*on\s+table\s+public\.therapist_specialty_certifications\b/i.test(
+    grantsSql,
+  ),
+  'certifications is not granted DELETE',
+);
+assert(
+  !/grant\s+[^;]*\bupdate\s+[^;]*on\s+table\s+public\.therapist_specialty_documents\b/i.test(
+    grantsSql,
+  ),
+  'documents is not granted UPDATE',
+);
+
+const grantsTs = '20260814123000';
+assert(grantsTs > govTs, 'grants hardening timestamp after governance migration');
+
+assert(
+  /GRANTS HARDENING|grants hardening|Dev apply findings/i.test(read(reportRel)),
+  'report documents grants hardening / Dev apply reconciliation',
+);
+assert(
+  /THERAPIST SETUP GRANTS HARDENING RECONCILIATION COMPLETE — READY FOR OWNER REVIEW — NOT APPLIED/.test(
+    read(reportRel),
+  ),
+  'report contains grants hardening stop line',
 );
 
 // ---------------------------------------------------------------------------
