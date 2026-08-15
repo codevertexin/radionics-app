@@ -2,41 +2,41 @@
 
 **Authorization consumed:** `RADIONICS-THERAPIST-SETUP-LOCAL-AUTH-20260814-01`  
 **Design baseline:** `docs/Engine/Therapist/Platform_Therapist_Setup_Pre_Implementation_Readiness.md` (OD-TS-1…15 **APPROVED**)  
-**Status:** `READY FOR OWNER REVIEW — NOT APPLIED TO SUPABASE`  
+**Status:** `THERAPIST SETUP DEV APPLY VERIFIED — READY FOR OWNER ACCEPTANCE`  
 **Date:** 2026-08-14  
-**Scope:** Local Therapist Setup / certification onboarding governance + grants hardening reconciliation
+**Scope:** Therapist Setup / certification onboarding governance + grants hardening (local artifacts + Development apply verified)
 
 ---
 
 ## 1. Executive verdict
 
-Therapist Setup local implementation prepared under `RADIONICS-THERAPIST-SETUP-LOCAL-AUTH-20260814-01`:
+Therapist Setup prepared under `RADIONICS-THERAPIST-SETUP-LOCAL-AUTH-20260814-01` and **verified in Development** after Owner-manual apply:
 
 - Reuses canonical tables: `radionics_specialties`, `therapist_specialty_certifications`, `therapist_specialty_documents`, `radionics_specialty_requests`
-- **Flow 1:** select active catalog specialty + certification evidence  
-- **Flow 2:** `radionics_specialty_requests` → catalog admission only → then Flow 1 certify  
-- **Deferred:** therapist-owned/private methodologies; methodology configuration; UI redesign; F3 session wiring  
-- Catalogue authority remains `radionics_specialties` — **no** `platform_methodologies`  
-- Additive governance SQL closes OD-TS-5 (document before `pending`) and OD-TS-7 (expiry in eligibility helper)
-- **Grants hardening** reconciles unsafe default table privileges (same class of Dev finding as F2 B1)
-- Static validator + this report; F2 persistence validators remain green
-- Migrations **not applied** to Supabase by this task
+- **Flow 1:** select active catalog specialty + certification evidence
+- **Flow 2:** `radionics_specialty_requests` → catalog admission only → then Flow 1 certify
+- **Deferred:** therapist-owned/private methodologies; methodology configuration; UI redesign; F3 session wiring
+- Catalogue authority remains `radionics_specialties` — **no** `platform_methodologies`
+- Governance SQL: OD-TS-5 (document before `pending`) + OD-TS-7 (expiry in eligibility helper)
+- Grants hardening: exact client matrix verified in Development
+- **Production:** not touched
+- Prior local stop (repo artifacts): `THERAPIST SETUP GRANTS HARDENING RECONCILIATION COMPLETE — READY FOR OWNER REVIEW — NOT APPLIED`
 
-**Stop label:** `THERAPIST SETUP GRANTS HARDENING RECONCILIATION COMPLETE — READY FOR OWNER REVIEW — NOT APPLIED`
+**Status / stop label:** `THERAPIST SETUP DEV APPLY VERIFIED — READY FOR OWNER ACCEPTANCE`
 
 ---
 
-## 2. Files created / modified
+## 2. Files created / modified (implementation history)
 
 | Path | Action |
 |------|--------|
-| `supabase/migrations/20260814120000_radionics_therapist_setup_governance.sql` | Created earlier (unchanged this reconciliation) |
-| `supabase/migrations/20260814123000_radionics_therapist_setup_grants_hardening.sql` | **Created** (grants reconciliation) |
-| `scripts/validate-platform-therapist-setup.mjs` | **Updated** — exact grants matrix asserts |
-| `docs/Engine/Therapist/Platform_Therapist_Setup_Local_Implementation_Report.md` | **Updated** (this file) |
-| `package.json` | Script `validate:platform-therapist-setup` (prior batch) |
+| `supabase/migrations/20260814120000_radionics_therapist_setup_governance.sql` | Created (governance) |
+| `supabase/migrations/20260814123000_radionics_therapist_setup_grants_hardening.sql` | Created (grants reconciliation) |
+| `scripts/validate-platform-therapist-setup.mjs` | Static validator (exact grants matrix) |
+| `docs/Engine/Therapist/Platform_Therapist_Setup_Local_Implementation_Report.md` | This report |
+| `package.json` | Script `validate:platform-therapist-setup` |
 
-**Not modified:** governance core SQL (`…14120000…`), F2 B1–B7 migrations, Product/MAP docs, UI, services.
+**This documentation update:** only this report file was modified.
 
 ---
 
@@ -55,14 +55,14 @@ Therapist Setup local implementation prepared under `RADIONICS-THERAPIST-SETUP-L
 
 ## 4. Migration summary
 
-### 4.1 Governance (`…14120000…`) — unchanged this batch
+### 4.1 Governance (`…14120000…`)
 
 - Helper: `status = 'approved' AND (expires_at IS NULL OR expires_at > now())`
 - Trigger: pending requires ≥1 `therapist_specialty_documents` row
 
-### 4.2 Grants hardening (`…14123000…`) — this reconciliation
+### 4.2 Grants hardening (`…14123000…`)
 
-**Dev apply findings / need:** After specialty/cert tables exist (Phase-1 and/or Therapist Setup governance), Supabase default grants can leave `public` / `anon` / `authenticated` with excess privileges (including `TRUNCATE` / `TRIGGER` / `REFERENCES`), the same failure mode previously reconciled for F2 B1. Therapist Setup therefore ships an additive grants migration **without** rewriting the governance file.
+**Dev apply findings / need (grants hardening):** After specialty/cert tables exist, Supabase default grants can leave `public` / `anon` / `authenticated` with excess privileges (including `TRUNCATE` / `TRIGGER` / `REFERENCES`), the same failure mode previously reconciled for F2 B1. Additive grants migration reconciles without rewriting the governance file.
 
 | Role | Table | Intended privileges |
 |------|-------|---------------------|
@@ -72,22 +72,48 @@ Therapist Setup local implementation prepared under `RADIONICS-THERAPIST-SETUP-L
 | `authenticated` | `therapist_specialty_certifications` | SELECT, INSERT, UPDATE |
 | `authenticated` | `therapist_specialty_documents` | SELECT, INSERT, DELETE |
 
-- Wrapped in `BEGIN` / `COMMIT`
-- RLS policies preserved (not dropped/recreated)
-- No TRUNCATE / TRIGGER / REFERENCES to anon/authenticated
-- `service_role` untouched
-- No RPCs; no `platform_methodologies`
+---
 
-### 4.3 Explicit non-goals
+## 5. Development apply — verified
 
-- No methodology configuration  
-- No therapist-owned/private methodology store  
-- No F2 `platform_*` session changes  
-- No Supabase apply in this task  
+Both migrations were **applied manually in Development** (not by the agent in this documentation update):
+
+1. `supabase/migrations/20260814120000_radionics_therapist_setup_governance.sql`
+2. `supabase/migrations/20260814123000_radionics_therapist_setup_grants_hardening.sql`
+
+### 5.1 Grants verification
+
+`therapist_setup_exact_client_grants` **PASS** — `missing=0` `unexpected=0`
+
+| Role | Table | Final grants |
+|------|-------|--------------|
+| `authenticated` | `radionics_specialties` | SELECT, INSERT, UPDATE, DELETE |
+| `authenticated` | `radionics_specialty_requests` | SELECT, INSERT, UPDATE |
+| `authenticated` | `therapist_specialty_certifications` | SELECT, INSERT, UPDATE |
+| `authenticated` | `therapist_specialty_documents` | SELECT, INSERT, DELETE |
+| `anon` | all four | **no grants** |
+
+Also verified: **no** TRUNCATE / TRIGGER / REFERENCES to `anon` / `authenticated`.
+
+### 5.2 Existing rows preserved
+
+| Table / entity | Count |
+|----------------|------:|
+| certifications | 6 |
+| documents | 6 |
+| specialty_requests | 1 |
+
+No data rows were inserted by this documentation task beyond pre-existing rows.
+
+### 5.3 Other Dev checks
+
+- RLS enabled on all four relevant tables (`radionics_specialties`, `radionics_specialty_requests`, `therapist_specialty_certifications`, `therapist_specialty_documents`)
+- `pending-requires-document` trigger present
+- **no** `platform_methodologies`
 
 ---
 
-## 5. Supported flows (locked)
+## 6. Supported flows (locked)
 
 | Flow | Path | Usable when |
 |------|------|-------------|
@@ -98,29 +124,29 @@ Therapist Setup local implementation prepared under `RADIONICS-THERAPIST-SETUP-L
 
 ---
 
-## 6. Validator
+## 7. Validator (static / local)
 
 - **Command:** `npm run validate:platform-therapist-setup`
-- **Assertions:** **89** passed / 0 failed
-- Includes exact revoke/grant matrix + no dangerous grants
-- Static only — not a live PostgreSQL test
+- **Assertions (last local run):** **89** passed / 0 failed
+- Static only — complements live Dev verification above; does not replace it
 
 ---
 
-## 7. Boundaries confirmed
+## 8. Boundaries confirmed
 
 | Concern | Posture |
 |---------|---------|
-| F2 B1–B7 | Untouched; validators re-run green |
-| Governance SQL core | **Not modified** this reconciliation |
-| UI / services | Not implemented this batch |
-| Methodology configuration | Deferred |
-| Private methodologies | Deferred / forbidden |
-| Production / Dev apply | **NOT APPLIED** |
+| Development apply | **Applied manually + verified** |
+| Production | **No Production** |
+| UI / services | **None** this path |
+| Methodology configuration | **None** |
+| F3 | **None** |
+| Agent data inserts | **None** beyond pre-existing rows |
+| This documentation update | **Only this report file** |
 
 ---
 
-## 8. Commands executed and results
+## 9. Local static suite (prior local batch — reference)
 
 | Command | Result |
 |---------|--------|
@@ -136,20 +162,17 @@ Therapist Setup local implementation prepared under `RADIONICS-THERAPIST-SETUP-L
 | `npm run validate:platform-session-f2-b1` | PASSED (**105** assertions) |
 | `npm run validate:platform-session-f0-f1` | PASSED (**151** assertions) |
 
-**Not executed:** Supabase apply/write, commit, push, deploy.
+---
+
+## 10. Confirmations (this update)
+
+- **No Production**
+- **No** UI / services / methodology configuration / F3
+- **No** data rows inserted by this task beyond pre-existing rows
+- **Only** this report file was modified
 
 ---
 
-## 9. Confirmations
+## 11. Stop line
 
-- Zero Supabase connections/writes from this task
-- No UI / F3 repositories / methodology configuration
-- No Product / MAP doc edits
-- No commit / push / deploy
-- Core governance migration left unchanged
-
----
-
-## 10. Stop line
-
-**THERAPIST SETUP GRANTS HARDENING RECONCILIATION COMPLETE — READY FOR OWNER REVIEW — NOT APPLIED**
+**THERAPIST SETUP DEV APPLY VERIFIED — READY FOR OWNER ACCEPTANCE**
