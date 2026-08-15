@@ -1,9 +1,9 @@
 # Platform Therapist Setup — Local Implementation Report
 
-**Authorization consumed:** `RADIONICS-THERAPIST-SETUP-LOCAL-AUTH-20260814-01`  
-**Design baseline:** `docs/Engine/Therapist/Platform_Therapist_Setup_Pre_Implementation_Readiness.md` (OD-TS-1…15 **APPROVED**)  
-**Status:** `THERAPIST SETUP DEV APPLY VERIFIED — READY FOR OWNER ACCEPTANCE`  
-**Date:** 2026-08-14  
+**Authorization consumed:** `RADIONICS-THERAPIST-SETUP-LOCAL-AUTH-20260814-01`
+**Design baseline:** `docs/Engine/Therapist/Platform_Therapist_Setup_Pre_Implementation_Readiness.md` (OD-TS-1…15 **APPROVED**)
+**Status:** `THERAPIST SETUP DEV APPLY VERIFIED — READY FOR OWNER ACCEPTANCE`
+**Date:** 2026-08-14
 **Scope:** Therapist Setup / certification onboarding governance + grants hardening (local artifacts + Development apply verified)
 
 ---
